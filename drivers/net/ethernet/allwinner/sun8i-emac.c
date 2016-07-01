@@ -27,6 +27,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/platform_device.h>
+#include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/scatterlist.h>
 #include <linux/skbuff.h>
@@ -317,6 +318,7 @@ struct sun8i_emac_priv {
 	struct device_node *mdio_node;
 	struct clk *ahb_clk;
 	struct clk *ephy_clk;
+	struct regulator *regulator;
 	bool use_internal_phy;
 
 	struct reset_control *rst_mac;
@@ -1155,8 +1157,17 @@ static int sun8i_emac_power(struct net_device *ndev)
 		}
 	}
 
+	if (priv->regulator) {
+		ret = regulator_enable(priv->regulator);
+		if (ret)
+			goto err_regulator;
+	}
+
 	return 0;
 
+err_regulator:
+	if (priv->rst_ephy)
+		reset_control_assert(priv->rst_ephy);
 err_ephy_reset:
 	if (priv->ephy_clk)
 		clk_disable_unprepare(priv->ephy_clk);
@@ -1172,6 +1183,9 @@ err_reset:
 static void sun8i_emac_unpower(struct net_device *ndev)
 {
 	struct sun8i_emac_priv *priv = netdev_priv(ndev);
+
+	if (priv->regulator)
+		regulator_disable(priv->regulator);
 
 	if (priv->rst_ephy)
 		reset_control_assert(priv->rst_ephy);
@@ -2206,6 +2220,19 @@ static int sun8i_emac_probe(struct platform_device *pdev)
 				 "No EPHY reset control found %d\n", ret);
 			priv->rst_ephy = NULL;
 		}
+	}
+
+	/* Optional regulator for PHY */
+	priv->regulator = devm_regulator_get_optional(&pdev->dev, "phy");
+	if (IS_ERR(priv->regulator)) {
+		if (PTR_ERR(priv->regulator) == -EPROBE_DEFER) {
+			ret = -EPROBE_DEFER;
+			goto probe_err;
+		}
+		dev_dbg(&pdev->dev, "no PHY regulator found\n");
+		priv->regulator = NULL;
+	} else {
+		dev_info(&pdev->dev, "PHY regulator found\n");
 	}
 
 	priv->irq = platform_get_irq(pdev, 0);
