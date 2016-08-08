@@ -1,0 +1,23 @@
+Sun8i HWspinlock Driver
+========================
+
+Required properties:
+- compatible:		Should be "allwinner,sun8i-hwspinlock"
+- reg:			Contains the hwspinlock module register address space
+			(base address and length)
+- clocks:		A phandle to the reference clock for this device
+- clock-names:		should be "ahb"
+- resets:		A phandle to the reset control for this device
+- reset-names:		should be "ahb"
+
+Example:
+
+/* sun8i-h3 */
+hwspinlock: hwspinlock@1c18000 {
+	compatible = "allwinner,sun8i-hwspinlock";
+	reg = <0x01c18000 0x400>;
+	resets = <&ccu RST_BUS_SPINLOCK>;
+	reset-names = "ahb";
+	clocks = <&ccu CLK_BUS_SPINLOCK>;
+	clock-names = "ahb";
+};
