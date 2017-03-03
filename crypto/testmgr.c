@@ -2111,6 +2111,7 @@ static int test_akcipher_one(struct crypto_akcipher *tfm,
 	unsigned int out_len_max, out_len = 0;
 	int err = -ENOMEM;
 	struct scatterlist src, dst, src_tab[2];
+	char *buf_padded = NULL;
 
 	if (testmgr_alloc_buf(xbuf))
 		return err;
@@ -2216,7 +2217,74 @@ static int test_akcipher_one(struct crypto_akcipher *tfm,
 		hexdump(outbuf_dec, out_len);
 		err = -EINVAL;
 	}
+
+	/* do same tests as above with 0 padded data */
+	if (!vecs->cpadd || err)
+		goto free_all;
+
+	buf_padded = kzalloc(vecs->c_size, GFP_KERNEL);
+	if (!buf_padded) {
+		err = -ENOMEM;
+		goto free_all;
+	}
+
+	memcpy(buf_padded, vecs->m, vecs->m_size);
+
+	sg_init_table(src_tab, 2);
+	sg_set_buf(&src_tab[0], buf_padded, 8);
+	sg_set_buf(&src_tab[1], buf_padded + 8, vecs->c_size - 8);
+	sg_init_one(&dst, outbuf_enc, out_len_max);
+	akcipher_request_set_crypt(req, src_tab, &dst, vecs->c_size,
+				   out_len_max);
+	akcipher_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG,
+				      crypto_req_done, &wait);
+
+	/* Run RSA encrypt - c = m^e mod n;*/
+	err = crypto_wait_req(crypto_akcipher_encrypt(req), &wait);
+	if (err) {
+		pr_err("alg: akcipher: padded encrypt test failed. err %d\n", err);
+		goto free_all;
+	}
+	if (req->dst_len != vecs->c_size) {
+		pr_err("alg: akcipher: padded encrypt test failed. Invalid output len\n");
+		err = -EINVAL;
+		goto free_all;
+	}
+	/* verify that encrypted message is equal to expected */
+	if (memcmp(vecs->cpadd, outbuf_enc, vecs->c_size)) {
+		pr_err("alg: akcipher: padded encrypt test failed. Invalid output\n");
+		hexdump(outbuf_enc, vecs->c_size);
+		err = -EINVAL;
+		goto free_all;
+	}
+
+	sg_init_one(&src, outbuf_enc, vecs->c_size);
+	sg_init_one(&dst, outbuf_dec, out_len_max);
+	crypto_init_wait(&wait);
+	akcipher_request_set_crypt(req, &src, &dst, vecs->c_size, out_len_max);
+
+	/* Run RSA decrypt - m = c^d mod n;*/
+	err = crypto_wait_req(crypto_akcipher_decrypt(req), &wait);
+	if (err) {
+		pr_err("alg: akcipher: padded decrypt test failed. err %d\n", err);
+		goto free_all;
+	}
+	out_len = req->dst_len;
+	if (out_len < vecs->m_size) {
+		pr_err("alg: akcipher: decrypt test failed. "
+		       "Invalid output len %u\n", out_len);
+		err = -EINVAL;
+		goto free_all;
+	}
+	/* verify that decrypted message is equal to the original msg */
+	if (memcmp(buf_padded, outbuf_dec, vecs->c_size)) {
+		pr_err("alg: akcipher: padded decrypt test failed. Invalid output\n");
+		hexdump(outbuf_dec, out_len);
+		err = -EINVAL;
+	}
+
 free_all:
+	kfree(buf_padded);
 	kfree(outbuf_dec);
 	kfree(outbuf_enc);
 free_req:
