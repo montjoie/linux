@@ -49,6 +49,10 @@
 	/* TODO: Camera, touchscreen, etc. */
 };
 
+&crypto {
+	status = "okay";
+};
+
 &emac {
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmii_pins>;
