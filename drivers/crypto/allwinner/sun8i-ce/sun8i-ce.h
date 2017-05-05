@@ -1,6 +1,7 @@
 #include <crypto/aes.h>
 #include <crypto/des.h>
 #include <crypto/engine.h>
+#include <crypto/rng.h>
 #include <crypto/skcipher.h>
 #include <linux/debugfs.h>
 #include <linux/crypto.h>
@@ -106,7 +107,7 @@
 
 #define TRNG_DATA_SIZE (256 / 8)
 #define PRNG_DATA_SIZE (160 / 8)
-#define PRNG_SEED_SIZE DIV_ROUND_UP(175,8)
+#define PRNG_SEED_SIZE DIV_ROUND_UP(175, 8)
 
 #define CE_ARBIT_IV	BIT(16)
 #define SS_ARBIT_IV	BIT(17)
@@ -127,6 +128,7 @@ struct ce_variant {
 	bool is_ss;
 	u32 intreg;
 	unsigned int maxflow;
+	char prng;
 };
 
 struct sginfo {
@@ -189,6 +191,8 @@ struct sun8i_ss_ctx {
 	struct sun8i_ce_flow *chanlist;
 	int flow; /* flow to use in next request */
 	const struct ce_variant *variant;
+	unsigned int seedsize;
+	void *seed;
 #ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_DEBUG
 	struct dentry *dbgfs_dir;
 	struct dentry *dbgfs_stats;
@@ -209,6 +213,11 @@ struct sun8i_tfm_ctx {
 	struct crypto_skcipher *fallback_tfm;
 };
 
+struct sun8i_ce_prng_ctx {
+	struct sun8i_ss_ctx *ss;
+	u32 op;
+};
+
 struct sun8i_ss_alg_template {
 	u32 type;
 	u32 mode;
@@ -216,6 +225,7 @@ struct sun8i_ss_alg_template {
 	u32 ce_blockmode;
 	const void *hash_init;
 	union {
+		struct rng_alg rng;
 		struct skcipher_alg skcipher;
 	} alg;
 	struct sun8i_ss_ctx *ss;
@@ -243,3 +253,9 @@ int get_engine_number(struct sun8i_ss_ctx *ss);
 
 int sun8i_ce_run_task(struct sun8i_ss_ctx *ss, int flow, const char *name);
 
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_PRNG
+int sun8i_ce_prng_generate(struct crypto_rng *tfm, const u8 *src,
+			   unsigned int slen, u8 *dst, unsigned int dlen);
+int sun8i_ce_prng_seed(struct crypto_rng *tfm, const u8 *seed, unsigned int slen);
+int sun8i_ce_prng_init(struct crypto_tfm *tfm);
+#endif

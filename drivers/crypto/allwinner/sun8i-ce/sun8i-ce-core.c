@@ -25,6 +25,7 @@
 #include <linux/reset.h>
 #include <linux/scatterlist.h>
 #include <crypto/scatterwalk.h>
+#include <crypto/internal/rng.h>
 #include <crypto/internal/skcipher.h>
 #include <linux/dma-mapping.h>
 
@@ -37,6 +38,7 @@ static const struct ce_variant ce_h3_variant = {
 	},
 	.intreg = CE_ISR,
 	.maxflow = 4,
+	.prng = CE_ALG_PRNG,
 };
 
 static const struct ce_variant ce_a64_variant = {
@@ -46,6 +48,7 @@ static const struct ce_variant ce_a64_variant = {
 	},
 	.intreg = CE_ISR,
 	.maxflow = 4,
+	.prng = CE_ALG_PRNG,
 };
 
 static const struct ce_variant ce_a83t_variant = {
@@ -56,6 +59,7 @@ static const struct ce_variant ce_a83t_variant = {
 	.is_ss = true,
 	.intreg = SS_INT_STA_REG,
 	.maxflow = 2,
+	.prng = SS_ALG_PRNG,
 };
 
 int get_engine_number(struct sun8i_ss_ctx *ss)
@@ -451,6 +455,24 @@ static struct sun8i_ss_alg_template ce_algs[] = {
 		.decrypt	= sun8i_ce_skdecrypt,
 	}
 },
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_PRNG
+{
+	.type = CRYPTO_ALG_TYPE_RNG,
+	.alg.rng = {
+		.base = {
+			.cra_name		= "stdrng",
+			.cra_driver_name	= "sun8i_ce_rng",
+			.cra_priority		= 100,
+			.cra_ctxsize		= sizeof(struct sun8i_ce_prng_ctx),
+			.cra_module		= THIS_MODULE,
+			.cra_init		= sun8i_ce_prng_init,
+		},
+		.generate               = sun8i_ce_prng_generate,
+		.seed                   = sun8i_ce_prng_seed,
+		.seedsize               = PRNG_SEED_SIZE,
+	}
+},
+#endif
 };
 
 #ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_DEBUG
@@ -469,6 +491,12 @@ static int sun8i_ce_dbgfs_read(struct seq_file *seq, void *v)
 			seq_printf(seq, "%s %s %lu %lu\n",
 				   ce_algs[i].alg.skcipher.base.cra_driver_name,
 				   ce_algs[i].alg.skcipher.base.cra_name,
+				   ce_algs[i].stat_req, ce_algs[i].stat_fb);
+			break;
+		case CRYPTO_ALG_TYPE_RNG:
+			seq_printf(seq, "%s %s %lu %lu\n",
+				   ce_algs[i].alg.rng.base.cra_driver_name,
+				   ce_algs[i].alg.rng.base.cra_name,
 				   ce_algs[i].stat_req, ce_algs[i].stat_fb);
 			break;
 		}
@@ -661,6 +689,19 @@ static int sun8i_ce_probe(struct platform_device *pdev)
 				goto error_alg;
 			}
 			break;
+		case CRYPTO_ALG_TYPE_RNG:
+			ce_method = ss->variant->prng;
+			if (ce_method == CE_ID_NOTSUPP) {
+				ce_algs[i].ss = NULL;
+				break;
+			}
+			err = crypto_register_rng(&ce_algs[i].alg.rng);
+			if (err) {
+				dev_err(ss->dev, "Fail to register %s\n",
+					ce_algs[i].alg.rng.base.cra_name);
+				goto error_alg;
+			}
+			break;
 		}
 	}
 
@@ -673,6 +714,11 @@ error_alg:
 			if (ce_algs[i].ss)
 				crypto_unregister_skcipher(&ce_algs[i].alg.skcipher);
 			break;
+		case CRYPTO_ALG_TYPE_RNG:
+			if (ce_algs[i].ss)
+				crypto_unregister_rng(&ce_algs[i].alg.rng);
+			break;
+		break;
 		}
 	}
 #ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_DEBUG
@@ -707,6 +753,10 @@ static int sun8i_ce_remove(struct platform_device *pdev)
 		case CRYPTO_ALG_TYPE_SKCIPHER:
 			if (ce_algs[i].ss)
 				crypto_unregister_skcipher(&ce_algs[i].alg.skcipher);
+			break;
+		case CRYPTO_ALG_TYPE_RNG:
+			if (ce_algs[i].ss)
+				crypto_unregister_rng(&ce_algs[i].alg.rng);
 			break;
 		}
 	}
