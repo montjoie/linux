@@ -36,3 +36,11 @@ config CRYPTO_DEV_SUN8I_CE_PRNG
 	help
 	  This driver provides kernel-side support for the Pseudo-Random
 	  Number Generator found in the sun8i Security System.
+
+config CRYPTO_DEV_SUN8I_CE_RSA
+       bool "Support for sun8i Allwinner Security System RSA"
+       depends on CRYPTO_DEV_SUN8I_CE
+       select CRYPTO_RSA
+       help
+         This driver provides kernel-side support for the RSA TODO
+         found in the sun8i Security System.

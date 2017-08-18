@@ -2,7 +2,9 @@
 #include <crypto/des.h>
 #include <crypto/engine.h>
 #include <crypto/rng.h>
+#include <crypto/akcipher.h>
 #include <crypto/skcipher.h>
+#include <crypto/internal/rsa.h>
 #include <linux/debugfs.h>
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
@@ -53,6 +55,7 @@
 #define SS_ALG_SHA1		(6 << 2)
 #define SS_ALG_SHA224		(7 << 2)
 #define SS_ALG_SHA256		(8 << 2)
+#define SS_ALG_RSA		(9 << 2)
 
 /* A80/A83T SS Registers */
 #define SS_CTL_REG		0x00
@@ -100,6 +103,27 @@
 #define SS_CTR_128	(3 << 11)
 #define CE_CTS		BIT(16)
 
+#define CE_ID_AKCIPHER_RSA 1
+#define CE_ID_AKCIPHER_MAX 2
+
+#define CE_ID_RSA_512	0
+#define CE_ID_RSA_1024	1
+#define CE_ID_RSA_2048	2
+#define CE_ID_RSA_3072	3
+#define CE_ID_RSA_4096	4
+#define CE_ID_RSA_MAX	5
+
+#define CE_OP_RSA_512	0
+#define CE_OP_RSA_1024	(1 << 28)
+#define CE_OP_RSA_2048	(2 << 28)
+#define CE_OP_RSA_3072	(3 << 28)
+#define CE_OP_RSA_4096	(4 << 28)
+
+#define SS_OP_RSA_512	0
+#define SS_OP_RSA_1024	(1 << 9)
+#define SS_OP_RSA_2048	(2 << 9)
+#define SS_OP_RSA_3072	(3 << 9)
+
 #define SS_FLOW0	BIT(30)
 #define SS_FLOW1	BIT(31)
 
@@ -129,6 +153,9 @@ struct ce_variant {
 	u32 intreg;
 	unsigned int maxflow;
 	char prng;
+	unsigned int maxrsakeysize;
+	char alg_akcipher[CE_ID_AKCIPHER_MAX];
+	u32 rsa_op_mode[CE_ID_RSA_MAX];
 };
 
 struct sginfo {
@@ -213,6 +240,22 @@ struct sun8i_tfm_ctx {
 	struct crypto_skcipher *fallback_tfm;
 };
 
+struct sun8i_rsa_req_ctx {
+	u32 op_dir;
+	int flow;
+};
+
+struct sun8i_tfm_rsa_ctx {
+	struct crypto_engine_reqctx enginectx;
+	struct sun8i_ss_ctx *ss;
+	struct rsa_key rsa_key;
+	/* used for fallback */
+	struct crypto_akcipher *fallback;
+	void *rsa_priv_key;
+	void *rsa_pub_key;
+	unsigned int key_len;
+};
+
 struct sun8i_ce_prng_ctx {
 	struct sun8i_ss_ctx *ss;
 	u32 op;
@@ -227,6 +270,9 @@ struct sun8i_ss_alg_template {
 	union {
 		struct rng_alg rng;
 		struct skcipher_alg skcipher;
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+		struct akcipher_alg rsa;
+#endif
 	} alg;
 	struct sun8i_ss_ctx *ss;
 #ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_DEBUG
@@ -258,4 +304,18 @@ int sun8i_ce_prng_generate(struct crypto_rng *tfm, const u8 *src,
 			   unsigned int slen, u8 *dst, unsigned int dlen);
 int sun8i_ce_prng_seed(struct crypto_rng *tfm, const u8 *seed, unsigned int slen);
 int sun8i_ce_prng_init(struct crypto_tfm *tfm);
+#endif
+
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+int sun8i_rsa_encrypt(struct akcipher_request *req);
+int sun8i_rsa_decrypt(struct akcipher_request *req);
+int sun8i_rsa_sign(struct akcipher_request *req);
+int sun8i_rsa_verify(struct akcipher_request *req);
+int sun8i_rsa_set_priv_key(struct crypto_akcipher *tfm, const void *key,
+			   unsigned int keylen);
+int sun8i_rsa_set_pub_key(struct crypto_akcipher *tfm, const void *key,
+			  unsigned int keylen);
+unsigned int sun8i_rsa_max_size(struct crypto_akcipher *tfm);
+int sun8i_rsa_init(struct crypto_akcipher *tfm);
+void sun8i_rsa_exit(struct crypto_akcipher *tfm);
 #endif

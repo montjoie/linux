@@ -26,6 +26,7 @@
 #include <linux/scatterlist.h>
 #include <crypto/scatterwalk.h>
 #include <crypto/internal/rng.h>
+#include <crypto/internal/akcipher.h>
 #include <crypto/internal/skcipher.h>
 #include <linux/dma-mapping.h>
 
@@ -39,6 +40,10 @@ static const struct ce_variant ce_h3_variant = {
 	.intreg = CE_ISR,
 	.maxflow = 4,
 	.prng = CE_ALG_PRNG,
+	.maxrsakeysize = 2048,
+	.rsa_op_mode = { CE_OP_RSA_512, CE_OP_RSA_1024, CE_OP_RSA_2048,
+			CE_OP_RSA_3072, CE_OP_RSA_4096, },
+	.alg_akcipher = { CE_ID_NOTSUPP, CE_ALG_RSA, },
 };
 
 static const struct ce_variant ce_a64_variant = {
@@ -49,6 +54,9 @@ static const struct ce_variant ce_a64_variant = {
 	.intreg = CE_ISR,
 	.maxflow = 4,
 	.prng = CE_ALG_PRNG,
+	.maxrsakeysize = 2048,
+	.rsa_op_mode = { CE_OP_RSA_512, CE_OP_RSA_1024, CE_OP_RSA_2048,
+			CE_ID_NOTSUPP, CE_ID_NOTSUPP, },
 };
 
 static const struct ce_variant ce_a83t_variant = {
@@ -60,6 +68,10 @@ static const struct ce_variant ce_a83t_variant = {
 	.intreg = SS_INT_STA_REG,
 	.maxflow = 2,
 	.prng = SS_ALG_PRNG,
+	.maxrsakeysize = 3072,
+	.rsa_op_mode = { SS_OP_RSA_512, SS_OP_RSA_1024, SS_OP_RSA_2048,
+			CE_ID_NOTSUPP, CE_ID_NOTSUPP, },
+	.alg_akcipher = { CE_ID_NOTSUPP, SS_ALG_RSA, },
 };
 
 int get_engine_number(struct sun8i_ss_ctx *ss)
@@ -473,6 +485,33 @@ static struct sun8i_ss_alg_template ce_algs[] = {
 	}
 },
 #endif
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+{
+	.type = CRYPTO_ALG_TYPE_AKCIPHER,
+	.ce_algo_id = CE_ID_AKCIPHER_RSA,
+	.alg.rsa = {
+		.encrypt = sun8i_rsa_encrypt,
+		.decrypt = sun8i_rsa_decrypt,
+		.sign = sun8i_rsa_sign,
+		.verify = sun8i_rsa_verify,
+		.set_priv_key = sun8i_rsa_set_priv_key,
+		.set_pub_key = sun8i_rsa_set_pub_key,
+		.max_size = sun8i_rsa_max_size,
+		.init = sun8i_rsa_init,
+		.exit = sun8i_rsa_exit,
+		.base = {
+			.cra_name = "rsa",
+			.cra_driver_name = "rsa-sun8i-ce",
+			.cra_priority = 300,
+			.cra_flags = CRYPTO_ALG_TYPE_AKCIPHER |
+				CRYPTO_ALG_ASYNC | CRYPTO_ALG_NEED_FALLBACK,
+			.cra_ctxsize = sizeof(struct sun8i_tfm_rsa_ctx),
+			.cra_module = THIS_MODULE,
+			.cra_alignmask = 3,
+		}
+	}
+},
+#endif
 };
 
 #ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_DEBUG
@@ -499,6 +538,14 @@ static int sun8i_ce_dbgfs_read(struct seq_file *seq, void *v)
 				   ce_algs[i].alg.rng.base.cra_name,
 				   ce_algs[i].stat_req, ce_algs[i].stat_fb);
 			break;
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+		case CRYPTO_ALG_TYPE_AKCIPHER:
+			seq_printf(seq, "%s %s %lu %lu\n",
+				   ce_algs[i].alg.rsa.base.cra_driver_name,
+				   ce_algs[i].alg.rsa.base.cra_name,
+				   ce_algs[i].stat_req, ce_algs[i].stat_fb);
+			break;
+#endif
 		}
 	}
 	return 0;
@@ -702,6 +749,16 @@ static int sun8i_ce_probe(struct platform_device *pdev)
 				goto error_alg;
 			}
 			break;
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+		case CRYPTO_ALG_TYPE_AKCIPHER:
+			err = crypto_register_akcipher(&ce_algs[i].alg.rsa);
+			if (err != 0) {
+				dev_err(ss->dev, "Fail to register RSA %s\n",
+					ce_algs[i].alg.rsa.base.cra_name);
+				goto error_alg;
+			}
+			break;
+#endif
 		}
 	}
 
@@ -718,7 +775,12 @@ error_alg:
 			if (ce_algs[i].ss)
 				crypto_unregister_rng(&ce_algs[i].alg.rng);
 			break;
-		break;
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+		case CRYPTO_ALG_TYPE_AKCIPHER:
+			if (ce_algs[i].ss)
+				crypto_unregister_akcipher(&ce_algs[i].alg.rsa);
+			break;
+#endif
 		}
 	}
 #ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_DEBUG
@@ -758,6 +820,12 @@ static int sun8i_ce_remove(struct platform_device *pdev)
 			if (ce_algs[i].ss)
 				crypto_unregister_rng(&ce_algs[i].alg.rng);
 			break;
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+		case CRYPTO_ALG_TYPE_AKCIPHER:
+			if (ce_algs[i].ss)
+				crypto_unregister_akcipher(&ce_algs[i].alg.rsa);
+			break;
+#endif
 		}
 	}
 
