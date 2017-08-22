@@ -487,6 +487,45 @@ struct crypto_alg {
 	void (*cra_destroy)(struct crypto_alg *alg);
 	
 	struct module *cra_module;
+
+	union {
+		atomic_t encrypt_cnt;
+		atomic_t compress_cnt;
+		atomic_t generate_cnt;
+		atomic_t hash_cnt;
+		atomic_t setsecret_cnt;
+	};
+	union {
+		atomic64_t encrypt_tlen;
+		atomic64_t compress_tlen;
+		atomic64_t generate_tlen;
+		atomic64_t hash_tlen;
+	};
+	union {
+		atomic_t akcipher_err_cnt;
+		atomic_t cipher_err_cnt;
+		atomic_t compress_err_cnt;
+		atomic_t aead_err_cnt;
+		atomic_t hash_err_cnt;
+		atomic_t rng_err_cnt;
+		atomic_t kpp_err_cnt;
+	};
+	union {
+		atomic_t decrypt_cnt;
+		atomic_t decompress_cnt;
+		atomic_t seed_cnt;
+		atomic_t generate_public_key_cnt;
+	};
+	union {
+		atomic64_t decrypt_tlen;
+		atomic64_t decompress_tlen;
+	};
+	union {
+		atomic_t verify_cnt;
+		atomic_t compute_shared_secret_cnt;
+	};
+	atomic_t sign_cnt;
+
 } CRYPTO_MINALIGN_ATTR;
 
 /*
@@ -907,6 +946,38 @@ static inline struct crypto_ablkcipher *crypto_ablkcipher_reqtfm(
 	return __crypto_ablkcipher_cast(req->base.tfm);
 }
 
+static inline void crypto_stat_ablkcipher_encrypt(struct ablkcipher_request *req,
+						  int ret)
+{
+#ifdef CONFIG_CRYPTO_STATS
+	struct ablkcipher_tfm *crt =
+		crypto_ablkcipher_crt(crypto_ablkcipher_reqtfm(req));
+
+	if (ret && ret != -EINPROGRESS) {
+		atomic_inc(&crt->base->base.__crt_alg->cipher_err_cnt);
+	} else {
+		atomic_inc(&crt->base->base.__crt_alg->encrypt_cnt);
+		atomic64_add(req->nbytes, &crt->base->base.__crt_alg->encrypt_tlen);
+	}
+#endif
+}
+
+static inline void crypto_stat_ablkcipher_decrypt(struct ablkcipher_request *req,
+						  int ret)
+{
+#ifdef CONFIG_CRYPTO_STATS
+	struct ablkcipher_tfm *crt =
+		crypto_ablkcipher_crt(crypto_ablkcipher_reqtfm(req));
+
+	if (ret && ret != -EINPROGRESS) {
+		atomic_inc(&crt->base->base.__crt_alg->cipher_err_cnt);
+	} else {
+		atomic_inc(&crt->base->base.__crt_alg->decrypt_cnt);
+		atomic64_add(req->nbytes, &crt->base->base.__crt_alg->decrypt_tlen);
+	}
+#endif
+}
+
 /**
  * crypto_ablkcipher_encrypt() - encrypt plaintext
  * @req: reference to the ablkcipher_request handle that holds all information
@@ -922,7 +993,11 @@ static inline int crypto_ablkcipher_encrypt(struct ablkcipher_request *req)
 {
 	struct ablkcipher_tfm *crt =
 		crypto_ablkcipher_crt(crypto_ablkcipher_reqtfm(req));
-	return crt->encrypt(req);
+	int ret;
+
+	ret = crt->encrypt(req);
+	crypto_stat_ablkcipher_encrypt(req, ret);
+	return ret;
 }
 
 /**
@@ -940,7 +1015,11 @@ static inline int crypto_ablkcipher_decrypt(struct ablkcipher_request *req)
 {
 	struct ablkcipher_tfm *crt =
 		crypto_ablkcipher_crt(crypto_ablkcipher_reqtfm(req));
-	return crt->decrypt(req);
+	int ret;
+
+	ret = crt->decrypt(req);
+	crypto_stat_ablkcipher_decrypt(req, ret);
+	return ret;
 }
 
 /**
