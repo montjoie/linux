@@ -66,6 +66,10 @@
 	};
 };
 
+&crypto {
+	status = "okay";
+};
+
 &ehci1 {
 	status = "okay";
 };
