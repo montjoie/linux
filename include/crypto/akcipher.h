@@ -384,4 +384,11 @@ static inline int crypto_akcipher_set_priv_key(struct crypto_akcipher *tfm,
 
 	return alg->set_priv_key(tfm, key, keylen);
 }
+
+static inline struct akcipher_request *akcipher_request_cast(
+	struct crypto_async_request *req)
+{
+	return container_of(req, struct akcipher_request, base);
+}
+
 #endif
