@@ -85,8 +85,10 @@ fail:
 		memcpy(dst, data, len);
 		dst += len;
 		dlen -= len;
-		if (dlen > 4 && antifail++ < 10)
+		if (dlen > 4 && antifail++ < 10) {
+			kfree(ss->chanlist[flow].next_iv);
 			goto rebegin;
+		}
 	}
 	memzero_explicit(data, PRNG_DATA_SIZE);
 	kfree(data);
