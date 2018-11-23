@@ -1,0 +1,19 @@
+* Amlogic Crypto
+
+Required properties:
+- compatible : Should be one of
+	"amlogic,meson-crypto-gxl"
+- reg: Should contain the crypto HW register location and length.
+- interrupts: Should contain IRQ lines for the device. one for each thread
+- clocks : phandle to the clock specifiers.
+- clock-names : Name of the functional clock, should be "blkmv"
+
+Example:
+	crypto: crypto@c883e000 {
+		compatible = "amlogic,meson-gxl-crypto";
+		reg = <0x0 0xc883e000 0x0 0x36>;
+		interrupts = <GIC_SPI 188 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 189 IRQ_TYPE_EDGE_RISING>;
+		clocks = <&clkc CLKID_BLKMV>;
+		clock-names = "blkmv";
+	};
