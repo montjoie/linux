@@ -59,3 +59,31 @@ config CRYPTO_DEV_SUN4I_SS_PRNG
 	  Select this option if you want to provide kernel-side support for
 	  the Pseudo-Random Number Generator found in the Security System.
 
+config CRYPTO_DEV_SUN8I_SS
+	tristate "Support for Allwinner Security System cryptographic accelerator"
+	select CRYPTO_BLKCIPHER
+	select CRYPTO_ENGINE
+	select CRYPTO_ECB
+	select CRYPTO_CBC
+	select CRYPTO_CTS
+	select CRYPTO_CTR
+	select CRYPTO_AES
+	select CRYPTO_DES
+	depends on CRYPTO_DEV_ALLWINNER
+	help
+	  Select y here for having support for the crypto Engine availlable on
+	  Allwinner SoC A80, A83T, H2+, H3, H5, H6, R40 and A64.
+	  The Crypto Engine handle AES/3DES ciphers in ECB/CBC/CTS/CTR mode.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called sun8i-ce.
+
+config CRYPTO_DEV_SUN8I_SS_DEBUG
+	bool "Enabled sun8i-ss stats"
+	depends on CRYPTO_DEV_SUN8I_SS
+	depends on DEBUG_FS
+	help
+	  Say y to enabled sun8i-ce debug stats.
+	  This will create /sys/kernel/debug/sun8i-ce/stats for displaying
+	  the number of requests per flow and per algorithm.
+
