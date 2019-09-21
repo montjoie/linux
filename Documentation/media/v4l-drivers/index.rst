@@ -66,4 +66,5 @@ For more details see the file COPYING in the source distribution of Linux.
 	uvcvideo
 	vimc
 	vivid
+	zoran
 	zr364xx
