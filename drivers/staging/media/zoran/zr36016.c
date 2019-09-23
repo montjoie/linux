@@ -415,7 +415,7 @@ static int zr36016_setup(struct videocodec *codec)
 	//mem structure init
 	codec->data = ptr = kzalloc(sizeof(struct zr36016), GFP_KERNEL);
 	if (!ptr) {
-		dprintk(1, KERN_ERR "zr36016: Can't get enough memory!\n");
+		pr_err("zr36016: Can't get enough memory!\n");
 		return -ENOMEM;
 	}
 

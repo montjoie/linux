@@ -226,10 +226,7 @@ static int v4l_fbuffer_alloc(struct zoran_fh *fh)
 		//udelay(20);
 		mem = kmalloc(fh->buffers.buffer_size, GFP_KERNEL | __GFP_NOWARN);
 		if (!mem) {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - kmalloc for V4L buf %d failed\n",
-				ZR_DEVNAME(zr), __func__, i);
+			pr_err("%s: %s - kmalloc for V4L buf %d failed\n", ZR_DEVNAME(zr), __func__, i);
 			v4l_fbuffer_free(fh);
 			return -ENOBUFS;
 		}
@@ -320,10 +317,7 @@ static int jpg_fbuffer_alloc(struct zoran_fh *fh)
 
 		mem = (void *)get_zeroed_page(GFP_KERNEL);
 		if (!mem) {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - get_zeroed_page (frag_tab) failed for buffer %d\n",
-				ZR_DEVNAME(zr), __func__, i);
+			pr_err("%s: %s - get_zeroed_page (frag_tab) failed for buffer %d\n", ZR_DEVNAME(zr), __func__, i);
 			jpg_fbuffer_free(fh);
 			return -ENOBUFS;
 		}
@@ -333,10 +327,7 @@ static int jpg_fbuffer_alloc(struct zoran_fh *fh)
 		if (fh->buffers.need_contiguous) {
 			mem = kmalloc(fh->buffers.buffer_size, GFP_KERNEL);
 			if (!mem) {
-				dprintk(1,
-					KERN_ERR
-					"%s: %s - kmalloc failed for buffer %d\n",
-					ZR_DEVNAME(zr), __func__, i);
+				pr_err("%s: %s - kmalloc failed for buffer %d\n", ZR_DEVNAME(zr), __func__, i);
 				jpg_fbuffer_free(fh);
 				return -ENOBUFS;
 			}
@@ -351,10 +342,7 @@ static int jpg_fbuffer_alloc(struct zoran_fh *fh)
 			for (j = 0; j < fh->buffers.buffer_size / PAGE_SIZE; j++) {
 				mem = (void *)get_zeroed_page(GFP_KERNEL);
 				if (!mem) {
-					dprintk(1,
-						KERN_ERR
-						"%s: %s - get_zeroed_page failed for buffer %d\n",
-						ZR_DEVNAME(zr), __func__, i);
+					pr_err("%s: %s - get_zeroed_page failed for buffer %d\n", ZR_DEVNAME(zr), __func__, i);
 					jpg_fbuffer_free(fh);
 					return -ENOBUFS;
 				}
@@ -441,10 +429,7 @@ static int zoran_v4l_set_format(struct zoran_fh *fh, int width, int height,
 
 	if (height < BUZ_MIN_HEIGHT || width < BUZ_MIN_WIDTH ||
 	    height > BUZ_MAX_HEIGHT || width > BUZ_MAX_WIDTH) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - wrong frame size (%dx%d)\n",
-			ZR_DEVNAME(zr), __func__, width, height);
+		pr_err("%s: %s - wrong frame size (%dx%d)\n", ZR_DEVNAME(zr), __func__, width, height);
 		return -EINVAL;
 	}
 
@@ -452,9 +437,7 @@ static int zoran_v4l_set_format(struct zoran_fh *fh, int width, int height,
 
 	/* Check against available buffer size */
 	if (height * width * bpp > fh->buffers.buffer_size) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - video buffer size (%d kB) is too small\n",
+		pr_err("%s: %s - video buffer size (%d kB) is too small\n",
 			ZR_DEVNAME(zr), __func__, fh->buffers.buffer_size >> 10);
 		return -EINVAL;
 	}
@@ -462,9 +445,7 @@ static int zoran_v4l_set_format(struct zoran_fh *fh, int width, int height,
 	/* The video front end needs 4-byte alinged line sizes */
 
 	if ((bpp == 2 && (width & 1)) || (bpp == 3 && (width & 3))) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - wrong frame alignment\n",
+		pr_err("%s: %s - wrong frame alignment\n",
 			ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
@@ -484,18 +465,13 @@ static int zoran_v4l_queue_frame(struct zoran_fh *fh, int num)
 	int res = 0;
 
 	if (!fh->buffers.allocated) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - buffers not yet allocated\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - buffers not yet allocated\n", ZR_DEVNAME(zr), __func__);
 		res = -ENOMEM;
 	}
 
 	/* No grabbing outside the buffer range! */
 	if (num >= fh->buffers.num_buffers || num < 0) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - buffer %d is out of range\n",
+		pr_err("%s: %s - buffer %d is out of range\n",
 			ZR_DEVNAME(zr), __func__, num);
 		res = -EINVAL;
 	}
@@ -507,9 +483,7 @@ static int zoran_v4l_queue_frame(struct zoran_fh *fh, int num)
 			zr->v4l_buffers = fh->buffers;
 			fh->buffers.active = ZORAN_ACTIVE;
 		} else {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - another session is already capturing\n",
+			pr_err("%s: %s - another session is already capturing\n",
 				ZR_DEVNAME(zr), __func__);
 			res = -EBUSY;
 		}
@@ -563,27 +537,19 @@ static int v4l_sync(struct zoran_fh *fh, int frame)
 	unsigned long flags;
 
 	if (fh->buffers.active == ZORAN_FREE) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - no grab active for this session\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - no grab active for this session\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 
 	/* check passed-in frame number */
 	if (frame >= fh->buffers.num_buffers || frame < 0) {
-		dprintk(1,
-			KERN_ERR "%s: %s - frame %d is invalid\n",
-			ZR_DEVNAME(zr), __func__, frame);
+		pr_err("%s: %s - frame %d is invalid\n", ZR_DEVNAME(zr), __func__, frame);
 		return -EINVAL;
 	}
 
 	/* Check if is buffer was queued at all */
 	if (zr->v4l_buffers.buffer[frame].state == BUZ_STATE_USER) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - attempt to sync on a buffer which was not queued?\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - attempt to sync on a buffer which was not queued?\n", ZR_DEVNAME(zr), __func__);
 		return -EPROTO;
 	}
 
@@ -600,9 +566,7 @@ static int v4l_sync(struct zoran_fh *fh, int frame)
 
 	/* buffer should now be in BUZ_STATE_DONE */
 	if (zr->v4l_buffers.buffer[frame].state != BUZ_STATE_DONE)
-		dprintk(2,
-			KERN_ERR "%s: %s - internal state error\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - internal state error\n", ZR_DEVNAME(zr), __func__);
 
 	zr->v4l_buffers.buffer[frame].state = BUZ_STATE_USER;
 	fh->buffers.buffer[frame] = zr->v4l_buffers.buffer[frame];
@@ -635,19 +599,13 @@ static int zoran_jpg_queue_frame(struct zoran_fh *fh, int num,
 
 	/* Check if buffers are allocated */
 	if (!fh->buffers.allocated) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - buffers not yet allocated\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - buffers not yet allocated\n", ZR_DEVNAME(zr), __func__);
 		return -ENOMEM;
 	}
 
 	/* No grabbing outside the buffer range! */
 	if (num >= fh->buffers.num_buffers || num < 0) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - buffer %d out of range\n",
-			ZR_DEVNAME(zr), __func__, num);
+		pr_err("%s: %s - buffer %d out of range\n", ZR_DEVNAME(zr), __func__, num);
 		return -EINVAL;
 	}
 
@@ -656,10 +614,7 @@ static int zoran_jpg_queue_frame(struct zoran_fh *fh, int num,
 		zr->jpg_settings = fh->jpg_settings;
 	} else if (zr->codec_mode != mode) {
 		/* wrong codec mode active - invalid */
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - codec in wrong mode\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - codec in wrong mode\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 
@@ -668,10 +623,7 @@ static int zoran_jpg_queue_frame(struct zoran_fh *fh, int num,
 			zr->jpg_buffers = fh->buffers;
 			fh->buffers.active = ZORAN_ACTIVE;
 		} else {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - another session is already capturing\n",
-				ZR_DEVNAME(zr), __func__);
+			pr_err("%s: %s - another session is already capturing\n", ZR_DEVNAME(zr), __func__);
 			res = -EBUSY;
 		}
 	}
@@ -728,10 +680,7 @@ static int jpg_qbuf(struct zoran_fh *fh, int frame, enum zoran_codec_mode mode)
 	if (frame < 0) {
 		if (zr->codec_mode == mode) {
 			if (fh->buffers.active == ZORAN_FREE) {
-				dprintk(1,
-					KERN_ERR
-					"%s: %s(-1) - session not active\n",
-					ZR_DEVNAME(zr), __func__);
+				pr_err("%s: %s(-1) - session not active\n", ZR_DEVNAME(zr), __func__);
 				return -EINVAL;
 			}
 			fh->buffers.active = zr->jpg_buffers.active = ZORAN_FREE;
@@ -739,10 +688,7 @@ static int jpg_qbuf(struct zoran_fh *fh, int frame, enum zoran_codec_mode mode)
 			zr36057_enable_jpg(zr, BUZ_MODE_IDLE);
 			return 0;
 		} else {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - stop streaming but not in streaming mode\n",
-				ZR_DEVNAME(zr), __func__);
+			pr_err("%s: %s - stop streaming but not in streaming mode\n", ZR_DEVNAME(zr), __func__);
 			return -EINVAL;
 		}
 	}
@@ -768,18 +714,12 @@ static int jpg_sync(struct zoran_fh *fh, struct zoran_sync *bs)
 	int frame;
 
 	if (fh->buffers.active == ZORAN_FREE) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - capture is not currently active\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - capture is not currently active\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 	if (zr->codec_mode != BUZ_MODE_MOTION_DECOMPRESS &&
 	    zr->codec_mode != BUZ_MODE_MOTION_COMPRESS) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - codec not in streaming mode\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - codec not in streaming mode\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 	mutex_unlock(&zr->lock);
@@ -793,10 +733,7 @@ static int jpg_sync(struct zoran_fh *fh, struct zoran_sync *bs)
 		udelay(1);
 		zr->codec->control(zr->codec, CODEC_G_STATUS, sizeof(isr), &isr);
 		mutex_lock(&zr->lock);
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - timeout: codec isr=0x%02x\n",
-			ZR_DEVNAME(zr), __func__, isr);
+		pr_err("%s: %s - timeout: codec isr=0x%02x\n", ZR_DEVNAME(zr), __func__, isr);
 
 		return -ETIME;
 	}
@@ -813,9 +750,7 @@ static int jpg_sync(struct zoran_fh *fh, struct zoran_sync *bs)
 
 	/* buffer should now be in BUZ_STATE_DONE */
 	if (zr->jpg_buffers.buffer[frame].state != BUZ_STATE_DONE)
-		dprintk(2,
-			KERN_ERR "%s: %s - internal state error\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - internal state error\n", ZR_DEVNAME(zr), __func__);
 
 	*bs = zr->jpg_buffers.buffer[frame].bs;
 	bs->frame = frame;
@@ -913,8 +848,7 @@ static int zoran_open(struct file *file)
 	mutex_lock(&zr->lock);
 
 	if (zr->user >= 2048) {
-		dprintk(1, KERN_ERR "%s: too many users (%d) on device\n",
-			ZR_DEVNAME(zr), zr->user);
+		pr_err("%s: too many users (%d) on device\n", ZR_DEVNAME(zr), zr->user);
 		res = -EBUSY;
 		goto fail_unlock;
 	}
@@ -922,10 +856,7 @@ static int zoran_open(struct file *file)
 	/* now, create the open()-specific file_ops struct */
 	fh = kzalloc(sizeof(struct zoran_fh), GFP_KERNEL);
 	if (!fh) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - allocation of zoran_fh failed\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - allocation of zoran_fh failed\n", ZR_DEVNAME(zr), __func__);
 		res = -ENOMEM;
 		goto fail_unlock;
 	}
@@ -935,10 +866,7 @@ static int zoran_open(struct file *file)
 	 * on norm-change! */
 	fh->overlay_mask = kmalloc(array3_size((768 + 31) / 32, 576, 4), GFP_KERNEL);
 	if (!fh->overlay_mask) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - allocation of overlay_mask failed\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - allocation of overlay_mask failed\n", ZR_DEVNAME(zr), __func__);
 		res = -ENOMEM;
 		goto fail_fh;
 	}
@@ -1070,23 +998,16 @@ static int setup_fbuffer(struct zoran_fh *fh, void *base, const struct zoran_for
 #endif
 
 	if (!(fmt->flags & ZORAN_FORMAT_OVERLAY)) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - no valid overlay format given\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - no valid overlay format given\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 	if (height <= 0 || width <= 0 || bytesperline <= 0) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - invalid height/width/bpl value (%d|%d|%d)\n",
+		pr_err("%s: %s - invalid height/width/bpl value (%d|%d|%d)\n",
 			ZR_DEVNAME(zr), __func__, width, height, bytesperline);
 		return -EINVAL;
 	}
 	if (bytesperline & 3) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - bytesperline (%d) must be 4-byte aligned\n",
+		pr_err("%s: %s - bytesperline (%d) must be 4-byte aligned\n",
 			ZR_DEVNAME(zr), __func__, bytesperline);
 		return -EINVAL;
 	}
@@ -1112,26 +1033,17 @@ static int setup_window(struct zoran_fh *fh, int x, int y, int width, int height
 	int on, end;
 
 	if (!zr->vbuf_base) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - frame buffer has to be set first\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - frame buffer has to be set first\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 
 	if (!fh->overlay_settings.format) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - no overlay format set\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - no overlay format set\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 
 	if (clipcount > 2048) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - invalid clipcount\n",
-			 ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - invalid clipcount\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 
@@ -1159,10 +1071,7 @@ static int setup_window(struct zoran_fh *fh, int x, int y, int width, int height
 	/* Check for invalid parameters */
 	if (width < BUZ_MIN_WIDTH || height < BUZ_MIN_HEIGHT ||
 	    width > BUZ_MAX_WIDTH || height > BUZ_MAX_HEIGHT) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - width = %d or height = %d invalid\n",
-			ZR_DEVNAME(zr), __func__, width, height);
+		pr_err("%s: %s - width = %d or height = %d invalid\n", ZR_DEVNAME(zr), __func__, width, height);
 		return -EINVAL;
 	}
 
@@ -1203,10 +1112,7 @@ static int setup_window(struct zoran_fh *fh, int x, int y, int width, int height
 		vcp = vmalloc(array_size(sizeof(struct v4l2_clip),
 					 clipcount + 4));
 		if (!vcp) {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - Alloc of clip mask failed\n",
-				ZR_DEVNAME(zr), __func__);
+			pr_err("%s: %s - Alloc of clip mask failed\n", ZR_DEVNAME(zr), __func__);
 			return -ENOMEM;
 		}
 		if (copy_from_user
@@ -1242,18 +1148,12 @@ static int setup_overlay(struct zoran_fh *fh, int on)
 	/* check whether we're touching someone else's overlay */
 	if (on && zr->overlay_active != ZORAN_FREE &&
 	    fh->overlay_active == ZORAN_FREE) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - overlay is already active for another session\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - overlay is already active for another session\n", ZR_DEVNAME(zr), __func__);
 		return -EBUSY;
 	}
 	if (!on && zr->overlay_active != ZORAN_FREE &&
 	    fh->overlay_active == ZORAN_FREE) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - you cannot cancel someone else's session\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - you cannot cancel someone else's session\n", ZR_DEVNAME(zr), __func__);
 		return -EPERM;
 	}
 
@@ -1267,17 +1167,11 @@ static int setup_overlay(struct zoran_fh *fh, int on)
 		zr->overlay_mask = NULL;
 	} else {
 		if (!zr->vbuf_base || !fh->overlay_settings.is_set) {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - buffer or window not set\n",
-				ZR_DEVNAME(zr), __func__);
+			pr_err("%s: %s - buffer or window not set\n", ZR_DEVNAME(zr), __func__);
 			return -EINVAL;
 		}
 		if (!fh->overlay_settings.format) {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - no overlay format set\n",
-				ZR_DEVNAME(zr), __func__);
+			pr_err("%s: %s - no overlay format set\n", ZR_DEVNAME(zr), __func__);
 			return -EINVAL;
 		}
 		zr->overlay_active = fh->overlay_active = ZORAN_LOCKED;
@@ -1308,10 +1202,7 @@ static int zoran_v4l2_buffer_status(struct zoran_fh *fh,
 		/* check range */
 		if (num < 0 || num >= fh->buffers.num_buffers ||
 		    !fh->buffers.allocated) {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - wrong number or buffers not allocated\n",
-				ZR_DEVNAME(zr), __func__);
+			pr_err("%s: %s - wrong number or buffers not allocated\n", ZR_DEVNAME(zr), __func__);
 			return -EINVAL;
 		}
 
@@ -1352,10 +1243,7 @@ static int zoran_v4l2_buffer_status(struct zoran_fh *fh,
 		/* check range */
 		if (num < 0 || num >= fh->buffers.num_buffers ||
 		    !fh->buffers.allocated) {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s - wrong number or buffers not allocated\n",
-				ZR_DEVNAME(zr), __func__);
+			pr_err("%s: %s - wrong number or buffers not allocated\n", ZR_DEVNAME(zr), __func__);
 			return -EINVAL;
 		}
 
@@ -1407,17 +1295,12 @@ static int zoran_set_norm(struct zoran *zr, v4l2_std_id norm)
 
 	if (zr->v4l_buffers.active != ZORAN_FREE ||
 	    zr->jpg_buffers.active != ZORAN_FREE) {
-		dprintk(1,
-			KERN_WARNING
-			"%s: %s called while in playback/capture mode\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_warn("%s: %s called while in playback/capture mode\n", ZR_DEVNAME(zr), __func__);
 		return -EBUSY;
 	}
 
 	if (!(norm & zr->card.norms)) {
-		dprintk(1,
-			KERN_ERR "%s: %s - unsupported norm %llx\n",
-			ZR_DEVNAME(zr), __func__, norm);
+		pr_err("%s: %s - unsupported norm %llx\n", ZR_DEVNAME(zr), __func__, norm);
 		return -EINVAL;
 	}
 
@@ -1461,10 +1344,7 @@ static int zoran_set_input(struct zoran *zr, int input)
 	}
 
 	if (input < 0 || input >= zr->card.inputs) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - unsupported input %d\n",
-			ZR_DEVNAME(zr), __func__, input);
+		pr_err("%s: %s - unsupported input %d\n", ZR_DEVNAME(zr), __func__, input);
 		return -EINVAL;
 	}
 
@@ -1744,8 +1624,7 @@ static int zoran_s_fmt_vid_out(struct file *file, void *__fh,
 		return -EINVAL;
 
 	if (fh->buffers.allocated) {
-		dprintk(1, KERN_ERR "%s: VIDIOC_S_FMT - cannot change capture mode\n",
-			ZR_DEVNAME(zr));
+		pr_err("%s: VIDIOC_S_FMT - cannot change capture mode\n", ZR_DEVNAME(zr));
 		res = -EBUSY;
 		return res;
 	}
@@ -1823,14 +1702,14 @@ static int zoran_s_fmt_vid_cap(struct file *file, void *__fh,
 		if (fmt->fmt.pix.pixelformat == zoran_formats[i].fourcc)
 			break;
 	if (i == NUM_FORMATS) {
-		dprintk(1, KERN_ERR "%s: VIDIOC_S_FMT - unknown/unsupported format 0x%x\n",
+		pr_err("%s: VIDIOC_S_FMT - unknown/unsupported format 0x%x\n",
 			ZR_DEVNAME(zr), fmt->fmt.pix.pixelformat);
 		return -EINVAL;
 	}
 
 	if ((fh->map_mode != ZORAN_MAP_MODE_RAW && fh->buffers.allocated) ||
 	    fh->buffers.active != ZORAN_FREE) {
-		dprintk(1, KERN_ERR "%s: VIDIOC_S_FMT - cannot change capture mode\n",
+		pr_err("%s: VIDIOC_S_FMT - cannot change capture mode\n",
 			ZR_DEVNAME(zr));
 		res = -EBUSY;
 		return res;
@@ -1890,7 +1769,7 @@ static int zoran_s_fbuf(struct file *file, void *__fh,
 		if (zoran_formats[i].fourcc == fb->fmt.pixelformat)
 			break;
 	if (i == NUM_FORMATS) {
-		dprintk(1, KERN_ERR "%s: VIDIOC_S_FBUF - format=0x%x (%4.4s) not allowed\n",
+		pr_err("%s: VIDIOC_S_FBUF - format=0x%x (%4.4s) not allowed\n",
 			ZR_DEVNAME(zr), fb->fmt.pixelformat,
 			(char *)&printformat);
 		return -EINVAL;
@@ -1918,10 +1797,7 @@ static int zoran_reqbufs(struct file *file, void *__fh, struct v4l2_requestbuffe
 	int res = 0;
 
 	if (req->memory != V4L2_MEMORY_MMAP) {
-		dprintk(2,
-			KERN_ERR
-				"%s: only MEMORY_MMAP capture is supported, not %d\n",
-				ZR_DEVNAME(zr), req->memory);
+		pr_err("%s: only MEMORY_MMAP capture is supported, not %d\n", ZR_DEVNAME(zr), req->memory);
 		return -EINVAL;
 	}
 
@@ -1929,10 +1805,7 @@ static int zoran_reqbufs(struct file *file, void *__fh, struct v4l2_requestbuffe
 		return zoran_streamoff(file, fh, req->type);
 
 	if (fh->buffers.allocated) {
-		dprintk(2,
-			KERN_ERR
-				"%s: VIDIOC_REQBUFS - buffers already allocated\n",
-				ZR_DEVNAME(zr));
+		pr_warn("%s: VIDIOC_REQBUFS - buffers already allocated\n", ZR_DEVNAME(zr));
 		res = -EBUSY;
 		return res;
 	}
@@ -1971,10 +1844,7 @@ static int zoran_reqbufs(struct file *file, void *__fh, struct v4l2_requestbuffe
 			return res;
 		}
 	} else {
-		dprintk(1,
-			KERN_ERR
-				"%s: VIDIOC_REQBUFS - unknown type %d\n",
-				ZR_DEVNAME(zr), req->type);
+		pr_err("%s: VIDIOC_REQBUFS - unknown type %d\n", ZR_DEVNAME(zr), req->type);
 		res = -EINVAL;
 		return res;
 	}
@@ -1997,8 +1867,7 @@ static int zoran_qbuf(struct file *file, void *__fh, struct v4l2_buffer *buf)
 	switch (fh->map_mode) {
 	case ZORAN_MAP_MODE_RAW:
 		if (buf->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-			dprintk(1, KERN_ERR
-				"%s: VIDIOC_QBUF - invalid buf->type=%d for map_mode=%d\n",
+			pr_err("%s: VIDIOC_QBUF - invalid buf->type=%d for map_mode=%d\n",
 				ZR_DEVNAME(zr), buf->type, fh->map_mode);
 			res = -EINVAL;
 			return res;
@@ -2022,8 +1891,7 @@ static int zoran_qbuf(struct file *file, void *__fh, struct v4l2_buffer *buf)
 		}
 
 		if (buf->type != buf_type) {
-			dprintk(1, KERN_ERR
-				"%s: VIDIOC_QBUF - invalid buf->type=%d for map_mode=%d\n",
+			pr_err("%s: VIDIOC_QBUF - invalid buf->type=%d for map_mode=%d\n",
 				ZR_DEVNAME(zr), buf->type, fh->map_mode);
 			res = -EINVAL;
 			return res;
@@ -2039,9 +1907,7 @@ static int zoran_qbuf(struct file *file, void *__fh, struct v4l2_buffer *buf)
 		break;
 
 	default:
-		dprintk(1, KERN_ERR
-			"%s: VIDIOC_QBUF - unsupported type %d\n",
-			ZR_DEVNAME(zr), buf->type);
+		pr_err("%s: VIDIOC_QBUF - unsupported type %d\n", ZR_DEVNAME(zr), buf->type);
 		res = -EINVAL;
 		break;
 	}
@@ -2057,8 +1923,7 @@ static int zoran_dqbuf(struct file *file, void *__fh, struct v4l2_buffer *buf)
 	switch (fh->map_mode) {
 	case ZORAN_MAP_MODE_RAW:
 		if (buf->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-			dprintk(1, KERN_ERR
-				"%s: VIDIOC_QBUF - invalid buf->type=%d for map_mode=%d\n",
+			pr_err("%s: VIDIOC_QBUF - invalid buf->type=%d for map_mode=%d\n",
 				ZR_DEVNAME(zr), buf->type, fh->map_mode);
 			res = -EINVAL;
 			return res;
@@ -2088,8 +1953,7 @@ static int zoran_dqbuf(struct file *file, void *__fh, struct v4l2_buffer *buf)
 			buf_type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
 		if (buf->type != buf_type) {
-			dprintk(1, KERN_ERR
-				"%s: VIDIOC_QBUF - invalid buf->type=%d for map_mode=%d\n",
+			pr_err("%s: VIDIOC_QBUF - invalid buf->type=%d for map_mode=%d\n",
 				ZR_DEVNAME(zr), buf->type, fh->map_mode);
 			res = -EINVAL;
 			return res;
@@ -2111,8 +1975,7 @@ static int zoran_dqbuf(struct file *file, void *__fh, struct v4l2_buffer *buf)
 	}
 
 	default:
-		dprintk(1, KERN_ERR
-			"%s: VIDIOC_DQBUF - unsupported type %d\n",
+		pr_err("%s: VIDIOC_DQBUF - unsupported type %d\n",
 			ZR_DEVNAME(zr), buf->type);
 		res = -EINVAL;
 		break;
@@ -2162,10 +2025,7 @@ static int zoran_streamon(struct file *file, void *__fh, enum v4l2_buf_type type
 		break;
 
 	default:
-		dprintk(1,
-			KERN_ERR
-			"%s: VIDIOC_STREAMON - invalid map mode %d\n",
-			ZR_DEVNAME(zr), fh->map_mode);
+		pr_err("%s: VIDIOC_STREAMON - invalid map mode %d\n", ZR_DEVNAME(zr), fh->map_mode);
 		res = -EINVAL;
 		break;
 	}
@@ -2227,8 +2087,7 @@ static int zoran_streamoff(struct file *file, void *__fh, enum v4l2_buf_type typ
 			return res;
 		break;
 	default:
-		dprintk(1, KERN_ERR
-			"%s: VIDIOC_STREAMOFF - invalid map mode %d\n",
+		pr_err("%s: VIDIOC_STREAMOFF - invalid map mode %d\n",
 			ZR_DEVNAME(zr), fh->map_mode);
 		res = -EINVAL;
 		break;
@@ -2341,9 +2200,7 @@ static int zoran_g_selection(struct file *file, void *__fh, struct v4l2_selectio
 		return -EINVAL;
 
 	if (fh->map_mode == ZORAN_MAP_MODE_RAW) {
-		dprintk(1, KERN_ERR
-			"%s: VIDIOC_G_SELECTION - subcapture only supported for compressed capture\n",
-			ZR_DEVNAME(zr));
+		pr_err("%s: VIDIOC_G_SELECTION - subcapture only supported for compressed capture\n", ZR_DEVNAME(zr));
 		return -EINVAL;
 	}
 
@@ -2385,18 +2242,14 @@ static int zoran_s_selection(struct file *file, void *__fh, struct v4l2_selectio
 		return -EINVAL;
 
 	if (fh->map_mode == ZORAN_MAP_MODE_RAW) {
-		dprintk(1, KERN_ERR
-			"%s: VIDIOC_S_SELECTION - subcapture only supported for compressed capture\n",
-			ZR_DEVNAME(zr));
+		pr_err("%s: VIDIOC_S_SELECTION - subcapture only supported for compressed capture\n", ZR_DEVNAME(zr));
 		return -EINVAL;
 	}
 
 	settings = fh->jpg_settings;
 
 	if (fh->buffers.allocated) {
-		dprintk(1, KERN_ERR
-			"%s: VIDIOC_S_SELECTION - cannot change settings while active\n",
-			ZR_DEVNAME(zr));
+		pr_err("%s: VIDIOC_S_SELECTION - cannot change settings while active\n", ZR_DEVNAME(zr));
 		return -EBUSY;
 	}
 
@@ -2532,10 +2385,7 @@ static __poll_t zoran_poll(struct file *file, poll_table  *wait)
 		break;
 
 	default:
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - internal error, unknown map_mode=%d\n",
-			ZR_DEVNAME(zr), __func__, fh->map_mode);
+		pr_err("%s: %s - internal error, unknown map_mode=%d\n", ZR_DEVNAME(zr), __func__, fh->map_mode);
 		res |= EPOLLERR;
 	}
 
@@ -2633,18 +2483,12 @@ static int zoran_mmap(struct file *file, struct vm_area_struct *vma)
 
 	if (!(vma->vm_flags & VM_SHARED) || !(vma->vm_flags & VM_READ) ||
 	    !(vma->vm_flags & VM_WRITE)) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s - no MAP_SHARED/PROT_{READ,WRITE} given\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - no MAP_SHARED/PROT_{READ,WRITE} given\n", ZR_DEVNAME(zr), __func__);
 		return -EINVAL;
 	}
 
 	if (!fh->buffers.allocated) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s(%s) - buffers not yet allocated\n",
-			ZR_DEVNAME(zr), __func__, mode_name(fh->map_mode));
+		pr_err("%s: %s(%s) - buffers not yet allocated\n", ZR_DEVNAME(zr), __func__, mode_name(fh->map_mode));
 		res = -ENOMEM;
 		return res;
 	}
@@ -2655,9 +2499,7 @@ static int zoran_mmap(struct file *file, struct vm_area_struct *vma)
 	    size % fh->buffers.buffer_size != 0 || first < 0 ||
 	    last < 0 || first >= fh->buffers.num_buffers ||
 	    last >= fh->buffers.buffer_size) {
-		dprintk(1,
-			KERN_ERR
-			"%s: %s(%s) - offset=%lu or size=%lu invalid for bufsize=%d and numbufs=%d\n",
+		pr_err("%s: %s(%s) - offset=%lu or size=%lu invalid for bufsize=%d and numbufs=%d\n",
 			ZR_DEVNAME(zr), __func__, mode_name(fh->map_mode), offset, size,
 			fh->buffers.buffer_size,
 			fh->buffers.num_buffers);
@@ -2668,10 +2510,7 @@ static int zoran_mmap(struct file *file, struct vm_area_struct *vma)
 	/* Check if any buffers are already mapped */
 	for (i = first; i <= last; i++) {
 		if (fh->buffers.buffer[i].map) {
-			dprintk(1,
-				KERN_ERR
-				"%s: %s(%s) - buffer %d already mapped\n",
-				ZR_DEVNAME(zr), __func__, mode_name(fh->map_mode), i);
+			pr_err("%s: %s(%s) - buffer %d already mapped\n", ZR_DEVNAME(zr), __func__, mode_name(fh->map_mode), i);
 			res = -EBUSY;
 			return res;
 		}
@@ -2698,10 +2537,7 @@ static int zoran_mmap(struct file *file, struct vm_area_struct *vma)
 			page = fh->buffers.buffer[i].v4l.fbuffer_phys;
 			if (remap_pfn_range(vma, start, page >> PAGE_SHIFT,
 					    todo, PAGE_SHARED)) {
-				dprintk(1,
-					KERN_ERR
-					"%s: %s(V4L) - remap_pfn_range failed\n",
-					ZR_DEVNAME(zr), __func__);
+				pr_err("%s: %s(V4L) - remap_pfn_range failed\n", ZR_DEVNAME(zr), __func__);
 				res = -EAGAIN;
 				return res;
 			}
@@ -2730,10 +2566,7 @@ static int zoran_mmap(struct file *file, struct vm_area_struct *vma)
 								>> PAGE_SHIFT;
 				if (remap_pfn_range(vma, start, page,
 						    todo, PAGE_SHARED)) {
-					dprintk(1,
-						KERN_ERR
-						"%s: %s(V4L) - remap_pfn_range failed\n",
-						ZR_DEVNAME(zr), __func__);
+					pr_err("%s: %s(V4L) - remap_pfn_range failed\n", ZR_DEVNAME(zr), __func__);
 					res = -EAGAIN;
 					return res;
 				}
