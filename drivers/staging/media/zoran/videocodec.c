@@ -69,8 +69,7 @@ static struct codec_list *codeclist_top;
 /* function prototypes of the master/slave interface */
 /* ================================================= */
 
-struct videocodec *
-videocodec_attach (struct videocodec_master *master)
+struct videocodec *videocodec_attach(struct videocodec_master *master)
 {
 	struct codec_list *h = codeclist_top;
 	struct attached_list *a, *ptr;
@@ -162,8 +161,7 @@ videocodec_attach (struct videocodec_master *master)
 	return NULL;
 }
 
-int
-videocodec_detach (struct videocodec *codec)
+int videocodec_detach(struct videocodec *codec)
 {
 	struct codec_list *h = codeclist_top;
 	struct attached_list *a, *prev;
@@ -202,7 +200,7 @@ videocodec_detach (struct videocodec *codec)
 						a->codec->name);
 					a->codec->master_data = NULL;
 				}
-				if (prev == NULL) {
+				if (!prev) {
 					h->list = a->next;
 					dprintk(4,
 						"videocodec: delete first\n");
@@ -227,8 +225,7 @@ videocodec_detach (struct videocodec *codec)
 	return -EINVAL;
 }
 
-int
-videocodec_register (const struct videocodec *codec)
+int videocodec_register(const struct videocodec *codec)
 {
 	struct codec_list *ptr, *h = codeclist_top;
 
@@ -262,8 +259,7 @@ videocodec_register (const struct videocodec *codec)
 	return 0;
 }
 
-int
-videocodec_unregister (const struct videocodec *codec)
+int videocodec_unregister(const struct videocodec *codec)
 {
 	struct codec_list *prev = NULL, *h = codeclist_top;
 
@@ -294,7 +290,7 @@ videocodec_unregister (const struct videocodec *codec)
 			}
 			dprintk(3, "videocodec: unregister '%s' is ok.\n",
 				h->codec->name);
-			if (prev == NULL) {
+			if (!prev) {
 				codeclist_top = h->next;
 				dprintk(4,
 					"videocodec: delete first element\n");
@@ -327,12 +323,12 @@ static int proc_videocodecs_show(struct seq_file *m, void *v)
 
 	while (h) {
 		seq_printf(m, "S %32s %04x %08lx %08lx (TEMPLATE)\n",
-			      h->codec->name, h->codec->type,
+			   h->codec->name, h->codec->type,
 			      h->codec->flags, h->codec->magic);
 		a = h->list;
 		while (a) {
 			seq_printf(m, "M %32s %04x %08lx %08lx (%s)\n",
-				      a->codec->master_data->name,
+				   a->codec->master_data->name,
 				      a->codec->master_data->type,
 				      a->codec->master_data->flags,
 				      a->codec->master_data->magic,
@@ -349,28 +345,23 @@ static int proc_videocodecs_show(struct seq_file *m, void *v)
 /* ===================== */
 /* hook in driver module */
 /* ===================== */
-static int __init
-videocodec_init (void)
+static int __init videocodec_init(void)
 {
 #ifdef CONFIG_PROC_FS
 	static struct proc_dir_entry *videocodec_proc_entry;
 #endif
 
-	printk(KERN_INFO "Linux video codec intermediate layer: %s\n",
-	       VIDEOCODEC_VERSION);
+	pr_info("Linux video codec intermediate layer: %s\n", VIDEOCODEC_VERSION);
 
 #ifdef CONFIG_PROC_FS
-	videocodec_proc_entry = proc_create_single("videocodecs", 0, NULL,
-			proc_videocodecs_show);
-	if (!videocodec_proc_entry) {
+	videocodec_proc_entry = proc_create_single("videocodecs", 0, NULL, proc_videocodecs_show);
+	if (!videocodec_proc_entry)
 		dprintk(1, KERN_ERR "videocodec: can't init procfs.\n");
-	}
 #endif
 	return 0;
 }
 
-static void __exit
-videocodec_exit (void)
+static void __exit videocodec_exit(void)
 {
 #ifdef CONFIG_PROC_FS
 	remove_proc_entry("videocodecs", NULL);
