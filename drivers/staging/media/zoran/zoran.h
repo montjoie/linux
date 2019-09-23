@@ -141,11 +141,12 @@ struct zoran_format {
 	__u32 flags;
 	__u32 vfespfr;
 };
+
 /* flags */
-#define ZORAN_FORMAT_COMPRESSED 1<<0
-#define ZORAN_FORMAT_OVERLAY    1<<1
-#define ZORAN_FORMAT_CAPTURE	1<<2
-#define ZORAN_FORMAT_PLAYBACK	1<<3
+#define ZORAN_FORMAT_COMPRESSED BIT(0)
+#define ZORAN_FORMAT_OVERLAY BIT(1)
+#define ZORAN_FORMAT_CAPTURE BIT(2)
+#define ZORAN_FORMAT_PLAYBACK BIT(3)
 
 /* overlay-settings */
 struct zoran_overlay_settings {
@@ -205,7 +206,7 @@ struct zoran_buffer_col {
 	enum zoran_lock_activity active;	/* feature currently in use? */
 	unsigned int num_buffers, buffer_size;
 	struct zoran_buffer buffer[MAX_FRAME];	/* buffers */
-	u8 allocated;		/* Flag if buffers are allocated  */
+	u8 allocated;		/* Flag if buffers are allocated */
 	u8 need_contiguous;	/* Flag if contiguous buffers are needed */
 	/* only applies to jpg buffers, raw buffers are always contiguous */
 };
@@ -262,7 +263,7 @@ struct card_info {
 	/* avs6eyes mux setting */
 	u8 input_mux;
 
-	void (*init) (struct zoran * zr);
+	void (*init)(struct zoran *zr);
 };
 
 struct zoran {
@@ -300,10 +301,10 @@ struct zoran {
 	v4l2_std_id norm;
 
 	/* Current buffer params */
-	void    *vbuf_base;
-	int     vbuf_height, vbuf_width;
-	int     vbuf_depth;
-	int     vbuf_bytesperline;
+	void *vbuf_base;
+	int vbuf_height, vbuf_width;
+	int vbuf_depth;
+	int vbuf_bytesperline;
 
 	struct zoran_overlay_settings overlay_settings;
 	u32 *overlay_mask;	/* overlay mask */
@@ -392,11 +393,11 @@ static inline struct zoran *to_zoran(struct v4l2_device *v4l2_dev)
 
 /* There was something called _ALPHA_BUZ that used the PCI address instead of
  * the kernel iomapped address for btread/btwrite.  */
-#define btwrite(dat,adr)    writel((dat), zr->zr36057_mem+(adr))
-#define btread(adr)         readl(zr->zr36057_mem+(adr))
+#define btwrite(dat, adr)    writel((dat), zr->zr36057_mem + (adr))
+#define btread(adr)         readl(zr->zr36057_mem + (adr))
 
-#define btand(dat,adr)      btwrite((dat) & btread(adr), adr)
-#define btor(dat,adr)       btwrite((dat) | btread(adr), adr)
-#define btaor(dat,mask,adr) btwrite((dat) | ((mask) & btread(adr)), adr)
+#define btand(dat, adr)      btwrite((dat) & btread(adr), adr)
+#define btor(dat, adr)       btwrite((dat) | btread(adr), adr)
+#define btaor(dat, mask, adr) btwrite((dat) | ((mask) & btread(adr)), adr)
 
 #endif
