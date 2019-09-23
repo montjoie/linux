@@ -66,13 +66,11 @@ MODULE_PARM_DESC(debug, "Debug level (0-4)");
    ========================================================================= */
 
 /* read and write functions */
-static u8
-zr36016_read (struct zr36016 *ptr,
-	      u16             reg)
+static u8 zr36016_read(struct zr36016 *ptr, u16 reg)
 {
 	u8 value = 0;
 
-	// just in case something is wrong...
+	/* just in case something is wrong... */
 	if (ptr->codec->master_data->readreg)
 		value =
 		    (ptr->codec->master_data->
@@ -82,19 +80,14 @@ zr36016_read (struct zr36016 *ptr,
 			KERN_ERR "%s: invalid I/O setup, nothing read!\n",
 			ptr->name);
 
-	dprintk(4, "%s: reading from 0x%04x: %02x\n", ptr->name, reg,
-		value);
+	dprintk(4, "%s: reading from 0x%04x: %02x\n", ptr->name, reg, value);
 
 	return value;
 }
 
-static void
-zr36016_write (struct zr36016 *ptr,
-	       u16             reg,
-	       u8              value)
+static void zr36016_write(struct zr36016 *ptr, u16 reg, u8 value)
 {
-	dprintk(4, "%s: writing 0x%02x to 0x%04x\n", ptr->name, value,
-		reg);
+	dprintk(4, "%s: writing 0x%02x to 0x%04x\n", ptr->name, value, reg);
 
 	// just in case something is wrong...
 	if (ptr->codec->master_data->writereg) {
@@ -109,13 +102,11 @@ zr36016_write (struct zr36016 *ptr,
 /* indirect read and write functions */
 /* the 016 supports auto-addr-increment, but
  * writing it all time cost not much and is safer... */
-static u8
-zr36016_readi (struct zr36016 *ptr,
-	       u16             reg)
+static u8 zr36016_readi(struct zr36016 *ptr, u16 reg)
 {
 	u8 value = 0;
 
-	// just in case something is wrong...
+	/* just in case something is wrong... */
 	if ((ptr->codec->master_data->writereg) &&
 	    (ptr->codec->master_data->readreg)) {
 		ptr->codec->master_data->writereg(ptr->codec, ZR016_IADDR, reg & 0x0F);	// ADDR
@@ -131,15 +122,12 @@ zr36016_readi (struct zr36016 *ptr,
 	return value;
 }
 
-static void
-zr36016_writei (struct zr36016 *ptr,
-		u16             reg,
-		u8              value)
+static void zr36016_writei(struct zr36016 *ptr, u16 reg, u8 value)
 {
 	dprintk(4, "%s: writing indirect 0x%02x to 0x%04x\n", ptr->name,
 		value, reg);
 
-	// just in case something is wrong...
+	/* just in case something is wrong... */
 	if (ptr->codec->master_data->writereg) {
 		ptr->codec->master_data->writereg(ptr->codec, ZR016_IADDR, reg & 0x0F);	// ADDR
 		ptr->codec->master_data->writereg(ptr->codec, ZR016_IDATA, value & 0x0FF);	// DATA
@@ -157,8 +145,7 @@ zr36016_writei (struct zr36016 *ptr,
    ========================================================================= */
 
 /* version kept in datastructure */
-static u8
-zr36016_read_version (struct zr36016 *ptr)
+static u8 zr36016_read_version(struct zr36016 *ptr)
 {
 	ptr->version = zr36016_read(ptr, 0) >> 4;
 	return ptr->version;
@@ -170,11 +157,11 @@ zr36016_read_version (struct zr36016 *ptr)
    basic test of "connectivity", writes/reads to/from PAX-Lo register
    ========================================================================= */
 
-static int
-zr36016_basic_test (struct zr36016 *ptr)
+static int zr36016_basic_test(struct zr36016 *ptr)
 {
 	if (debug) {
 		int i;
+
 		zr36016_writei(ptr, ZR016I_PAX_LO, 0x55);
 		dprintk(1, KERN_INFO "%s: registers: ", ptr->name);
 		for (i = 0; i <= 0x0b; i++)
@@ -219,16 +206,16 @@ zr36016_basic_test (struct zr36016 *ptr)
    ========================================================================= */
 
 #if 0
-static int zr36016_pushit (struct zr36016 *ptr,
-			   u16             startreg,
+static int zr36016_pushit(struct zr36016 *ptr,
+			  u16             startreg,
 			   u16             len,
 			   const char     *data)
 {
-	int i=0;
+	int i = 0;
 
 	dprintk(4, "%s: write data block to 0x%04x (len=%d)\n",
-		ptr->name, startreg,len);
-	while (i<len) {
+		ptr->name, startreg, len);
+	while (i < len) {
 		zr36016_writei(ptr, startreg++,  data[i++]);
 	}
 
@@ -242,8 +229,7 @@ static int zr36016_pushit (struct zr36016 *ptr,
    //TODO//
    ========================================================================= */
 
-static void
-zr36016_init (struct zr36016 *ptr)
+static void zr36016_init(struct zr36016 *ptr)
 {
 	// stop any processing
 	zr36016_write(ptr, ZR016_GOSTOP, 0);
@@ -283,11 +269,9 @@ zr36016_init (struct zr36016 *ptr)
 
 /* set compression/expansion mode and launches codec -
    this should be the last call from the master before starting processing */
-static int
-zr36016_set_mode (struct videocodec *codec,
-		  int                mode)
+static int zr36016_set_mode(struct videocodec *codec, int mode)
 {
-	struct zr36016 *ptr = (struct zr36016 *) codec->data;
+	struct zr36016 *ptr = (struct zr36016 *)codec->data;
 
 	dprintk(2, "%s: set_mode %d call\n", ptr->name, mode);
 
@@ -301,13 +285,10 @@ zr36016_set_mode (struct videocodec *codec,
 }
 
 /* set picture size */
-static int
-zr36016_set_video (struct videocodec   *codec,
-		   struct tvnorm       *norm,
-		   struct vfe_settings *cap,
-		   struct vfe_polarity *pol)
+static int zr36016_set_video(struct videocodec *codec, struct tvnorm *norm,
+		   struct vfe_settings *cap, struct vfe_polarity *pol)
 {
-	struct zr36016 *ptr = (struct zr36016 *) codec->data;
+	struct zr36016 *ptr = (struct zr36016 *)codec->data;
 
 	dprintk(2, "%s: set_video %d.%d, %d/%d-%dx%d (0x%x) call\n",
 		ptr->name, norm->HStart, norm->VStart,
@@ -339,14 +320,11 @@ zr36016_set_video (struct videocodec   *codec,
 }
 
 /* additional control functions */
-static int
-zr36016_control (struct videocodec *codec,
-		 int                type,
-		 int                size,
-		 void              *data)
+static int zr36016_control(struct videocodec *codec, int type,
+		 int size, void *data)
 {
-	struct zr36016 *ptr = (struct zr36016 *) codec->data;
-	int *ival = (int *) data;
+	struct zr36016 *ptr = (struct zr36016 *)codec->data;
+	int *ival = (int *)data;
 
 	dprintk(2, "%s: control %d call with %d byte\n", ptr->name, type,
 		size);
@@ -393,8 +371,7 @@ zr36016_control (struct videocodec *codec,
    Deinitializes Zoran's JPEG processor
    ========================================================================= */
 
-static int
-zr36016_unset (struct videocodec *codec)
+static int zr36016_unset(struct videocodec *codec)
 {
 	struct zr36016 *ptr = codec->data;
 
@@ -422,8 +399,7 @@ zr36016_unset (struct videocodec *codec)
    (the given size is determined by the processor with the video interface)
    ========================================================================= */
 
-static int
-zr36016_setup (struct videocodec *codec)
+static int zr36016_setup(struct videocodec *codec)
 {
 	struct zr36016 *ptr;
 	int res;
@@ -438,7 +414,7 @@ zr36016_setup (struct videocodec *codec)
 	}
 	//mem structure init
 	codec->data = ptr = kzalloc(sizeof(struct zr36016), GFP_KERNEL);
-	if (NULL == ptr) {
+	if (!ptr) {
 		dprintk(1, KERN_ERR "zr36016: Can't get enough memory!\n");
 		return -ENOMEM;
 	}
@@ -471,33 +447,31 @@ zr36016_setup (struct videocodec *codec)
 static const struct videocodec zr36016_codec = {
 	.owner = THIS_MODULE,
 	.name = "zr36016",
-	.magic = 0L,		// magic not used
+	.magic = 0L,		/* magic not used */
 	.flags =
 	    CODEC_FLAG_HARDWARE | CODEC_FLAG_VFE | CODEC_FLAG_ENCODER |
 	    CODEC_FLAG_DECODER,
 	.type = CODEC_TYPE_ZR36016,
-	.setup = zr36016_setup,	// functionality
+	.setup = zr36016_setup,	/* functionality */
 	.unset = zr36016_unset,
 	.set_mode = zr36016_set_mode,
 	.set_video = zr36016_set_video,
 	.control = zr36016_control,
-	// others are not used
+	/* others are not used */
 };
 
 /* =========================================================================
    HOOK IN DRIVER AS KERNEL MODULE
    ========================================================================= */
 
-static int __init
-zr36016_init_module (void)
+static int __init zr36016_init_module(void)
 {
 	//dprintk(1, "ZR36016 driver %s\n",ZR016_VERSION);
 	zr36016_codecs = 0;
 	return videocodec_register(&zr36016_codec);
 }
 
-static void __exit
-zr36016_cleanup_module (void)
+static void __exit zr36016_cleanup_module(void)
 {
 	if (zr36016_codecs) {
 		dprintk(1,
