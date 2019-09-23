@@ -13,7 +13,7 @@ To allocate it dynamically use :c:func:`video_device_alloc`:
 
 	struct video_device *vdev = video_device_alloc();
 
-	if (vdev == NULL)
+	if (!vdev)
 		return -ENOMEM;
 
 	vdev->release = video_device_release;
