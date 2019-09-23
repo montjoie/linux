@@ -314,7 +314,7 @@ static void zr36057_set_vfe(struct zoran *zr, int video_width, int video_height,
 	if (video_width < BUZ_MIN_WIDTH ||
 	    video_height < BUZ_MIN_HEIGHT ||
 	    video_width > Wa || video_height > Ha) {
-		dprintk(1, KERN_ERR "%s: set_vfe: w=%d h=%d not valid\n",
+		pr_err("%s: set_vfe: w=%d h=%d not valid\n",
 			ZR_DEVNAME(zr), video_width, video_height);
 		return;
 	}
