@@ -77,7 +77,7 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 	int res;
 
 	if (!master) {
-		dprintk(1, KERN_ERR "videocodec_attach: no data\n");
+		pr_err("videocodec_attach: no data\n");
 		return NULL;
 	}
 
@@ -151,7 +151,7 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 		h = h->next;
 	}
 
-	dprintk(1, KERN_ERR "videocodec_attach: no codec found!\n");
+	pr_err("videocodec_attach: no codec found!\n");
 	return NULL;
 
  out_module_put:
@@ -168,7 +168,7 @@ int videocodec_detach(struct videocodec *codec)
 	int res;
 
 	if (!codec) {
-		dprintk(1, KERN_ERR "videocodec_detach: no data\n");
+		pr_err("videocodec_detach: no data\n");
 		return -EINVAL;
 	}
 
@@ -221,7 +221,7 @@ int videocodec_detach(struct videocodec *codec)
 		h = h->next;
 	}
 
-	dprintk(1, KERN_ERR "videocodec_detach: given codec not found!\n");
+	pr_err("videocodec_detach: given codec not found!\n");
 	return -EINVAL;
 }
 
@@ -230,7 +230,7 @@ int videocodec_register(const struct videocodec *codec)
 	struct codec_list *ptr, *h = codeclist_top;
 
 	if (!codec) {
-		dprintk(1, KERN_ERR "videocodec_register: no data!\n");
+		pr_err("videocodec_register: no data!\n");
 		return -EINVAL;
 	}
 
@@ -240,7 +240,7 @@ int videocodec_register(const struct videocodec *codec)
 
 	ptr = kzalloc(sizeof(struct codec_list), GFP_KERNEL);
 	if (!ptr) {
-		dprintk(1, KERN_ERR "videocodec_register: no memory\n");
+		pr_err("videocodec_register: no memory\n");
 		return -ENOMEM;
 	}
 	ptr->codec = codec;
@@ -264,7 +264,7 @@ int videocodec_unregister(const struct videocodec *codec)
 	struct codec_list *prev = NULL, *h = codeclist_top;
 
 	if (!codec) {
-		dprintk(1, KERN_ERR "videocodec_unregister: no data!\n");
+		pr_err("videocodec_unregister: no data!\n");
 		return -EINVAL;
 	}
 
@@ -356,7 +356,7 @@ static int __init videocodec_init(void)
 #ifdef CONFIG_PROC_FS
 	videocodec_proc_entry = proc_create_single("videocodecs", 0, NULL, proc_videocodecs_show);
 	if (!videocodec_proc_entry)
-		dprintk(1, KERN_ERR "videocodec: can't init procfs.\n");
+		pr_err("videocodec: can't init procfs.\n");
 #endif
 	return 0;
 }
