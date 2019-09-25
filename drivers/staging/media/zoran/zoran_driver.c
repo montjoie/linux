@@ -2394,8 +2394,7 @@ static __poll_t zoran_poll(struct file *file, poll_table  *wait)
  * the buffer accordingly (zoran_vm_close())
  */
 
-static void
-zoran_vm_open(struct vm_area_struct *vma)
+static void zoran_vm_open(struct vm_area_struct *vma)
 {
 	struct zoran_mapping *map = vma->vm_private_data;
 
