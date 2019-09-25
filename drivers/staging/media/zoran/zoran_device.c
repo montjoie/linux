@@ -1271,10 +1271,8 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 		while ((stat = count_reset_interrupt(zr))) {
 			if (count++ > 100) {
 				btand(~ZR36057_ICR_IntPinEn, ZR36057_ICR);
-				dprintk(1,
-					KERN_ERR
-					"%s: IRQ lockup while testing, isr=0x%08x, cleared int mask\n",
-					ZR_DEVNAME(zr), stat);
+				pr_err("%s: IRQ lockup while testing, isr=0x%08x, cleared int mask\n",
+				       ZR_DEVNAME(zr), stat);
 				wake_up_interruptible(&zr->test_q);
 			}
 		}
@@ -1308,9 +1306,7 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 			if (zr->v4l_memgrab_active) {
 				/* A lot more checks should be here ... */
 				if ((btread(ZR36057_VSSFGR) & ZR36057_VSSFGR_SnapShot) == 0)
-					dprintk(1,
-						KERN_WARNING
-						"%s: BuzIRQ with SnapShot off ???\n",
+					pr_warn("%s: BuzIRQ with SnapShot off ???\n",
 						ZR_DEVNAME(zr));
 
 				if (zr->v4l_grab_frame != NO_GRAB_ACTIVE) {
@@ -1430,14 +1426,10 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 
 		count++;
 		if (count > 10) {
-			dprintk(2, KERN_WARNING "%s: irq loop %d\n",
-				ZR_DEVNAME(zr), count);
+			pr_warn("%s: irq loop %d\n", ZR_DEVNAME(zr), count);
 			if (count > 20) {
 				btand(~ZR36057_ICR_IntPinEn, ZR36057_ICR);
-				dprintk(2,
-					KERN_ERR
-					"%s: IRQ lockup, cleared int mask\n",
-					ZR_DEVNAME(zr));
+				pr_err("%s: IRQ lockup, cleared int mask\n", ZR_DEVNAME(zr));
 				break;
 			}
 		}
