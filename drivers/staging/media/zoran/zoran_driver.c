@@ -218,10 +218,7 @@ static int v4l_fbuffer_alloc(struct zoran_fh *fh)
 
 	for (i = 0; i < fh->buffers.num_buffers; i++) {
 		if (fh->buffers.buffer[i].v4l.fbuffer)
-			dprintk(2,
-				KERN_WARNING
-				"%s: %s - buffer %d already allocated!?\n",
-				ZR_DEVNAME(zr), __func__, i);
+			pr_warn("%s: %s - buffer %d already allocated!?\n", ZR_DEVNAME(zr), __func__, i);
 
 		//udelay(20);
 		mem = kmalloc(fh->buffers.buffer_size, GFP_KERNEL | __GFP_NOWARN);
@@ -465,14 +462,15 @@ static int zoran_v4l_queue_frame(struct zoran_fh *fh, int num)
 	int res = 0;
 
 	if (!fh->buffers.allocated) {
-		pr_err("%s: %s - buffers not yet allocated\n", ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - buffers not yet allocated\n", ZR_DEVNAME(zr),
+		       __func__);
 		res = -ENOMEM;
 	}
 
 	/* No grabbing outside the buffer range! */
 	if (num >= fh->buffers.num_buffers || num < 0) {
-		pr_err("%s: %s - buffer %d is out of range\n",
-			ZR_DEVNAME(zr), __func__, num);
+		pr_err("%s: %s - buffer %d is out of range\n", ZR_DEVNAME(zr),
+		       __func__, num);
 		res = -EINVAL;
 	}
 
@@ -501,9 +499,7 @@ static int zoran_v4l_queue_frame(struct zoran_fh *fh, int num)
 			res = -EBUSY;	/* what are you doing? */
 			break;
 		case BUZ_STATE_DONE:
-			dprintk(2,
-				KERN_WARNING
-				"%s: %s - queueing buffer %d in state DONE!?\n",
+			pr_warn("%s: %s - queueing buffer %d in state DONE!?\n",
 				ZR_DEVNAME(zr), __func__, num);
 			/* fall through */
 		case BUZ_STATE_USER:
@@ -638,9 +634,7 @@ static int zoran_jpg_queue_frame(struct zoran_fh *fh, int num,
 	if (!res) {
 		switch (zr->jpg_buffers.buffer[num].state) {
 		case BUZ_STATE_DONE:
-			dprintk(2,
-				KERN_WARNING
-				"%s: %s - queuing frame in BUZ_STATE_DONE state!?\n",
+			pr_warn("%s: %s - queuing frame in BUZ_STATE_DONE state!?\n",
 				ZR_DEVNAME(zr), __func__);
 			/* fall through */
 		case BUZ_STATE_USER:
@@ -898,7 +892,7 @@ fail_fh:
 fail_unlock:
 	mutex_unlock(&zr->lock);
 
-	dprintk(2, KERN_INFO "%s: open failed (%d), users(-)=%d\n",
+	pr_err("%s: open failed (%d), users(-)=%d\n",
 		ZR_DEVNAME(zr), res, zr->user);
 
 	return res;
@@ -1274,10 +1268,7 @@ static int zoran_v4l2_buffer_status(struct zoran_fh *fh,
 		break;
 
 	default:
-
-		dprintk(5,
-			KERN_ERR
-			"%s: %s - invalid buffer type|map_mode (%d|%d)\n",
+		pr_err("%s: %s - invalid buffer type|map_mode (%d|%d)\n",
 			ZR_DEVNAME(zr), __func__, buf->type, fh->map_mode);
 		return -EINVAL;
 	}
@@ -1336,10 +1327,7 @@ static int zoran_set_input(struct zoran *zr, int input)
 
 	if (zr->v4l_buffers.active != ZORAN_FREE ||
 	    zr->jpg_buffers.active != ZORAN_FREE) {
-		dprintk(1,
-			KERN_WARNING
-			"%s: %s called while in playback/capture mode\n",
-			ZR_DEVNAME(zr), __func__);
+		pr_warn("%s: %s called while in playback/capture mode\n", ZR_DEVNAME(zr), __func__);
 		return -EBUSY;
 	}
 
@@ -1797,7 +1785,8 @@ static int zoran_reqbufs(struct file *file, void *__fh, struct v4l2_requestbuffe
 	int res = 0;
 
 	if (req->memory != V4L2_MEMORY_MMAP) {
-		pr_err("%s: only MEMORY_MMAP capture is supported, not %d\n", ZR_DEVNAME(zr), req->memory);
+		pr_err("%s: only MEMORY_MMAP capture is supported, not %d\n",
+		       ZR_DEVNAME(zr), req->memory);
 		return -EINVAL;
 	}
 
@@ -1805,7 +1794,8 @@ static int zoran_reqbufs(struct file *file, void *__fh, struct v4l2_requestbuffe
 		return zoran_streamoff(file, fh, req->type);
 
 	if (fh->buffers.allocated) {
-		pr_warn("%s: VIDIOC_REQBUFS - buffers already allocated\n", ZR_DEVNAME(zr));
+		pr_warn("%s: VIDIOC_REQBUFS - buffers already allocated\n",
+			ZR_DEVNAME(zr));
 		res = -EBUSY;
 		return res;
 	}

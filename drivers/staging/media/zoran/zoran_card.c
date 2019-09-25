@@ -965,18 +965,14 @@ static int zr36057_init(struct zoran *zr)
 		zr->timing = zr->card.tvn[2];
 	}
 	if (!zr->timing) {
-		dprintk(1,
-			KERN_WARNING
-			"%s: %s - default TV standard not supported by hardware. PAL will be used.\n",
+		pr_warn("%s: %s - default TV standard not supported by hardware. PAL will be used.\n",
 			ZR_DEVNAME(zr), __func__);
 		zr->norm = V4L2_STD_PAL;
 		zr->timing = zr->card.tvn[0];
 	}
 
 	if (default_input > zr->card.inputs - 1) {
-		dprintk(1,
-			KERN_WARNING
-			"%s: default_input value %d out of range (0-%d)\n",
+		pr_warn("%s: default_input value %d out of range (0-%d)\n",
 			ZR_DEVNAME(zr), default_input, zr->card.inputs - 1);
 		default_input = 0;
 	}
@@ -1176,18 +1172,13 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		goto zr_unreg;
 	zr->revision = zr->pci_dev->revision;
 
-	dprintk(1,
-		KERN_INFO
-		"%s: Zoran ZR360%c7 (rev %d), irq: %d, memory: 0x%08llx\n",
-		ZR_DEVNAME(zr), zr->revision < 2 ? '5' : '6', zr->revision,
-		zr->pci_dev->irq, (uint64_t)pci_resource_start(zr->pci_dev, 0));
-	if (zr->revision >= 2) {
-		dprintk(1,
-			KERN_INFO
-			"%s: Subsystem vendor=0x%04x id=0x%04x\n",
-			ZR_DEVNAME(zr), zr->pci_dev->subsystem_vendor,
-			zr->pci_dev->subsystem_device);
-	}
+	pci_info(pdev, "%s: Zoran ZR360%c7 (rev %d), irq: %d, memory: 0x%08llx\n",
+		 ZR_DEVNAME(zr), zr->revision < 2 ? '5' : '6', zr->revision,
+		 zr->pci_dev->irq, (uint64_t)pci_resource_start(zr->pci_dev, 0));
+	if (zr->revision >= 2)
+		pci_info(pdev, "%s: Subsystem vendor=0x%04x id=0x%04x\n",
+			 ZR_DEVNAME(zr), zr->pci_dev->subsystem_vendor,
+			 zr->pci_dev->subsystem_device);
 
 	/* Use auto-detected card type? */
 	if (card[nr] == -1) {
@@ -1259,7 +1250,7 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	dprintk(2, KERN_INFO "%s: Initializing i2c bus...\n", ZR_DEVNAME(zr));
 
 	if (zoran_register_i2c(zr) < 0) {
-		pr_err("%s: %s - can't initialize i2c bus\n", ZR_DEVNAME(zr), __func__);
+		pr_err("%s: %s - cannot initialize i2c bus\n", ZR_DEVNAME(zr), __func__);
 		goto zr_free_irq;
 	}
 
@@ -1328,8 +1319,7 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	/* take care of Natoma chipset and a revision 1 zr36057 */
 	if ((pci_pci_problems & PCIPCI_NATOMA) && zr->revision <= 1) {
 		zr->jpg_buffers.need_contiguous = 1;
-		dprintk(1, KERN_INFO
-			"%s: ZR36057/Natoma bug, max. buffer size is 128K\n",
+		pr_info("%s: ZR36057/Natoma bug, max. buffer size is 128K\n",
 			ZR_DEVNAME(zr));
 	}
 
@@ -1401,17 +1391,13 @@ static int __init zoran_init(void)
 		jpg_bufsize = 512 * 1024;
 	/* Use parameter for vidmem or try to find a video card */
 	if (vidmem) {
-		dprintk(1,
-			KERN_INFO
-			"%s: Using supplied video memory base address @ 0x%lx\n",
+		pr_info("%s: Using supplied video memory base address @ 0x%lx\n",
 			ZORAN_NAME, vidmem);
 	}
 
 	/* some mainboards might not do PCI-PCI data transfer well */
 	if (pci_pci_problems & (PCIPCI_FAIL | PCIAGP_FAIL | PCIPCI_ALIMAGIK)) {
-		dprintk(1,
-			KERN_WARNING
-			"%s: chipset does not support reliable PCI-PCI DMA\n", ZORAN_NAME);
+		pr_warn("%s: chipset does not support reliable PCI-PCI DMA\n", ZORAN_NAME);
 	}
 
 	res = pci_register_driver(&zoran_driver);
