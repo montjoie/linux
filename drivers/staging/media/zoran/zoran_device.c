@@ -174,9 +174,8 @@ static void dump_guests(struct zoran *zr)
 	if (zr36067_debug > 2) {
 		int i, guest[8];
 
-		for (i = 1; i < 8; i++) {	/* Don't read jpeg codec here */
+		for (i = 1; i < 8; i++) /* Don't read jpeg codec here */
 			guest[i] = post_office_read(zr, i, 0);
-		}
 
 		pr_info("%s: Guests: %*ph\n", ZR_DEVNAME(zr), 8, guest);
 	}
