@@ -622,6 +622,41 @@ static struct card_info zoran_cards[NUM_CARDS] = {
 
 };
 
+static int zr_dbgfs_read(struct seq_file *seq, void *v)
+{
+	struct zoran *zr = seq->private;
+
+	seq_printf(seq, "GIRQ0 %d:\n", zr->intr_counter_GIRQ0);
+	seq_printf(seq, "GIRQ1 %d:\n", zr->intr_counter_GIRQ1);
+	seq_printf(seq, "CodRepIRQ %d:\n", zr->intr_counter_CodRepIRQ);
+	seq_printf(seq, "JPEGRepIRQ %d:\n", zr->intr_counter_JPEGRepIRQ);
+	seq_printf(seq, "JPEG_missed %d:\n", zr->JPEG_missed);
+	seq_printf(seq, "JPEG_error %d:\n", zr->JPEG_error);
+	seq_printf(seq, "num_errors %d:\n", zr->num_errors);
+	seq_printf(seq, "JPEG_max_missed %d:\n", zr->JPEG_max_missed);
+	seq_printf(seq, "JPEG_min_missed %d:\n", zr->JPEG_min_missed);
+	seq_printf(seq, "END_event_missed %d:\n", zr->END_event_missed);
+	seq_printf(seq, "JPEG_in %d:\n", zr->JPEG_in);
+	seq_printf(seq, "JPEG_out %d:\n", zr->JPEG_out);
+	seq_printf(seq, "JPEG_0 %d:\n", zr->JPEG_0);
+	seq_printf(seq, "JPEG_1 %d:\n", zr->JPEG_1);
+
+	return 0;
+}
+
+static int zr_dbgfs_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, zr_dbgfs_read, inode->i_private);
+}
+
+static const struct file_operations zr_debugfs_fops = {
+	.owner = THIS_MODULE,
+	.open = zr_dbgfs_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
 /*
  * I2C functions
  */
@@ -1019,6 +1054,10 @@ static int zr36057_init(struct zoran *zr)
 		encoder_call(zr, video, s_routing, 2, 0, 0);
 	}
 
+	zr->dbgfs_dir = debugfs_create_dir("zoran", NULL);
+	zr->dbgfs_stats = debugfs_create_file("stats", 0444, zr->dbgfs_dir, zr,
+					      &zr_debugfs_fops);
+
 	zr->zoran_proc = NULL;
 	zr->initialized = 1;
 	return 0;
@@ -1036,6 +1075,8 @@ static void zoran_remove(struct pci_dev *pdev)
 
 	if (!zr->initialized)
 		goto exit_free;
+
+	debugfs_remove_recursive(zr->dbgfs_dir);
 
 	/* unregister videocodec bus */
 	if (zr->codec) {
