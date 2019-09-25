@@ -1241,8 +1241,7 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (latency != need_latency) {
 		dprintk(2, KERN_INFO "%s: Changing PCI latency from %d to %d\n",
 			ZR_DEVNAME(zr), latency, need_latency);
-		pci_write_config_byte(zr->pci_dev, PCI_LATENCY_TIMER,
-				      need_latency);
+		pci_write_config_byte(zr->pci_dev, PCI_LATENCY_TIMER, need_latency);
 	}
 
 	zr36057_restart(zr);
