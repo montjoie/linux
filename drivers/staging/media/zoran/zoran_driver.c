@@ -892,8 +892,7 @@ fail_unlock:
 	return res;
 }
 
-static int
-zoran_close(struct file *file)
+static int zoran_close(struct file *file)
 {
 	struct zoran_fh *fh = file->private_data;
 	struct zoran *zr = fh->zr;
