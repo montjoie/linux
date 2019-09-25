@@ -141,10 +141,6 @@ static ssize_t zoran_write(struct file *file, const char __user *buffer,
 
 	string = sp = vmalloc(count + 1);
 	if (!string) {
-		dprintk(1,
-			KERN_ERR
-			"%s: write_proc: can not allocate memory\n",
-			ZR_DEVNAME(zr));
 		return -ENOMEM;
 	}
 	if (copy_from_user(string, buffer, count)) {
