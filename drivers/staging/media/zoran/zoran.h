@@ -27,6 +27,7 @@
 #ifndef _BUZ_H_
 #define _BUZ_H_
 
+#include <linux/debugfs.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-fh.h>
@@ -384,6 +385,9 @@ struct zoran {
 	unsigned long frame_num;
 
 	wait_queue_head_t test_q;
+
+	struct dentry *dbgfs_dir;
+	struct dentry *dbgfs_stats;
 };
 
 static inline struct zoran *to_zoran(struct v4l2_device *v4l2_dev)
