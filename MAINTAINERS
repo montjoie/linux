@@ -19120,6 +19120,15 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/dlemoal/zonefs.git
 F:	Documentation/filesystems/zonefs.rst
 F:	fs/zonefs/
 
+ZR36067 VIDEO FOR LINUX DRIVER
+M:     Corentin Labbe <clabbe.montjoie@gmail.com>
+L:     mjpeg-users@lists.sourceforge.net
+L:     linux-media@vger.kernel.org
+W:     http://mjpeg.sourceforge.net/driver-zoran/
+T:     hg https://linuxtv.org/hg/v4l-dvb
+S:     Maintained
+F:     drivers/staging/media/zoran/
+
 ZPOOL COMPRESSED PAGE STORAGE API
 M:	Dan Streetman <ddstreet@ieee.org>
 L:	linux-mm@kvack.org
