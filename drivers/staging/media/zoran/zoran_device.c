@@ -1133,12 +1133,9 @@ static void error_handler(struct zoran *zr, u32 astat, u32 stat)
 irqreturn_t zoran_irq(int irq, void *dev_id)
 {
 	u32 stat, astat;
-	int count;
-	struct zoran *zr;
+	int count = 0;
+	struct zoran *zr = dev_id;
 	unsigned long flags;
-
-	zr = dev_id;
-	count = 0;
 
 	if (zr->testing) {
 		/* Testing interrupts */
