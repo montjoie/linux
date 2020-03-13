@@ -319,11 +319,11 @@ struct zoran {
 	/* (dma_head - dma_tail) is number active in DMA, must be <= BUZ_NUM_STAT_COM */
 	/* (value & BUZ_MASK_STAT_COM) corresponds to index in stat_com table */
 	unsigned long jpg_que_head;	/* Index where to put next buffer which is queued */
-	unsigned long jpg_dma_head;	/* Index of next buffer which goes into stat_com  */
-	unsigned long jpg_dma_tail;	/* Index of last buffer in stat_com               */
-	unsigned long jpg_que_tail;	/* Index of last buffer in queue                  */
-	unsigned long jpg_seq_num;	/* count of frames since grab/play started        */
-	unsigned long jpg_err_seq;	/* last seq_num before error                      */
+	unsigned long jpg_dma_head;	/* Index of next buffer which goes into stat_com */
+	unsigned long jpg_dma_tail;	/* Index of last buffer in stat_com */
+	unsigned long jpg_que_tail;	/* Index of last buffer in queue */
+	unsigned long jpg_seq_num;	/* count of frames since grab/play started */
+	unsigned long jpg_err_seq;	/* last seq_num before error */
 	unsigned long jpg_err_shift;
 	unsigned long jpg_queued_num;	/* count of frames queued since grab/play started */
 
