@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Zoran zr36057/zr36067 PCI controller driver, for the
  * Pinnacle/Miro DC10/DC10+/DC30/DC30+, Iomega Buz, Linux
