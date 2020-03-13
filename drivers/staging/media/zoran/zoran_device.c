@@ -53,8 +53,8 @@
 #include "zoran_card.h"
 
 #define IRQ_MASK (ZR36057_ISR_GIRQ0 | \
-		   ZR36057_ISR_GIRQ1 | \
-		   ZR36057_ISR_JPEGRepIRQ)
+		  ZR36057_ISR_GIRQ1 | \
+		  ZR36057_ISR_JPEGRepIRQ)
 
 static bool lml33dpath;		/* default = 0
 				 * 1 will use digital path in capture
