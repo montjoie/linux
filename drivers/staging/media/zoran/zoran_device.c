@@ -70,6 +70,9 @@ static bool lml33dpath;		/* default = 0
 module_param(lml33dpath, bool, 0644);
 MODULE_PARM_DESC(lml33dpath, "Use digital path capture mode (on LML33 cards)");
 
+int zr_set_buf(struct zoran *zr);
+int zoran_status(struct zoran *zr);
+
 /*
  * initialize video front end
  */
@@ -83,6 +86,7 @@ static void zr36057_init_vfe(struct zoran *zr)
 	reg |= ZR36057_VFESPFR_ExtFl;
 	reg |= ZR36057_VFESPFR_TopField;
 	btwrite(reg, ZR36057_VFESPFR);
+
 	reg = btread(ZR36057_VDCR);
 	if (pci_pci_problems & PCIPCI_TRITON)
 		// || zr->revision < 1) // Revision 1 has also Triton support
@@ -106,6 +110,7 @@ void GPIO(struct zoran *zr, int bit, unsigned int value)
 	u32 reg;
 	u32 mask;
 
+	pr_info("%s %x %x\n", __func__, bit, value);
 	/* Make sure the bit number is legal
 	 * A bit number of -1 (lacking) gives a mask of 0,
 	 * making it harmless
@@ -130,6 +135,7 @@ int post_office_wait(struct zoran *zr)
 //      while (((por = btread(ZR36057_POR)) & (ZR36057_POR_POPen | ZR36057_POR_POTime)) == ZR36057_POR_POPen) {
 	while ((por = btread(ZR36057_POR)) & ZR36057_POR_POPen) {
 		/* wait for something to happen */
+		/* TODO add timeout */
 	}
 	if ((por & ZR36057_POR_POTime) && !zr->card.gws_not_connected) {
 		/* In LML33/BUZ \GWS line is not connected, so it has always timeout set */
@@ -291,21 +297,23 @@ static void zr36057_adjust_vfe(struct zoran *zr, enum zoran_codec_mode  mode)
 			reg += ((1 << 10) | 1);
 
 		btwrite(reg, ZR36057_VFEHCR);
+		pr_info("%s mode=%d ZR36057_VFEHCR %x\n", __func__, mode, reg);
 		break;
 	case BUZ_MODE_MOTION_COMPRESS:
 	case BUZ_MODE_IDLE:
 	default:
 		if ((zr->norm & V4L2_STD_NTSC) ||
 		    (zr->card.type == LML33R10 &&
-		     (zr->norm & V4L2_STD_PAL)))
+		     (zr->norm & V4L2_STD_PAL))) {
 			btand(~ZR36057_VFESPFR_ExtFl, ZR36057_VFESPFR);
-		else
-			btor(ZR36057_VFESPFR_ExtFl, ZR36057_VFESPFR);
+		} else {
+			btor(ZR36057_VFESPFR_ExtFl, ZR36057_VFESPFR); }
 		reg = btread(ZR36057_VFEHCR);
 		if (!(reg & (1 << 10)) && zr->card.type != LML33R10)
 			reg -= ((1 << 10) | 1);
 
 		btwrite(reg, ZR36057_VFEHCR);
+		pr_info("%s mode=%d default ZR36057_VFEHCR %x\n", __func__, mode, reg);
 		break;
 	}
 }
@@ -326,6 +334,7 @@ static void zr36057_set_vfe(struct zoran *zr, int video_width, int video_height,
 	unsigned int X, Y, HorDcm, VerDcm;
 	u32 reg;
 
+	pr_info("%s %dx%d\n", __func__, video_width, video_height);
 	tvn = zr->timing;
 
 	Wa = tvn->Wa;
@@ -427,6 +436,10 @@ static void zr36057_set_vfe(struct zoran *zr, int video_width, int video_height,
 /* Enable/Disable uncompressed memory grabbing of the 36057 */
 void zr36057_set_memgrab(struct zoran *zr, int mode)
 {
+	u32 v, reg;
+	int j;
+
+	pci_info(zr->pci_dev, "%s: mode=%d\n", __func__, mode);
 	if (mode) {
 		/* We only check SnapShot and not FrameGrab here.  SnapShot==1
 		 * means a capture is already in progress, but FrameGrab==1
@@ -436,15 +449,13 @@ void zr36057_set_memgrab(struct zoran *zr, int mode)
 		 * will be stuck at 1 until capturing is turned back on.
 		 */
 		if (btread(ZR36057_VSSFGR) & ZR36057_VSSFGR_SnapShot)
-			dprintk(1,
-				KERN_WARNING
-				"%s: zr36057_set_memgrab(1) with SnapShot on!?\n",
+			pr_warn("%s: zr36057_set_memgrab(1) with SnapShot on!?\n",
 				ZR_DEVNAME(zr));
 
 		/* switch on VSync interrupts */
-		btwrite(IRQ_MASK, ZR36057_ISR);	// Clear Interrupts
+		btwrite(IRQ_MASK, ZR36057_ISR);
+		btor(ZR36057_ICR_IntPinEn, ZR36057_ICR);
 		btor(zr->card.vsync_int, ZR36057_ICR);	// SW
-
 		/* enable SnapShot */
 		btor(ZR36057_VSSFGR_SnapShot, ZR36057_VSSFGR);
 
@@ -470,8 +481,9 @@ int wait_grab_pending(struct zoran *zr)
 {
 	unsigned long flags;
 
+	pr_info("%s\n", __func__);
 	/* wait until all pending grabs are finished */
-
+#ifdef ZORAN_OLD
 	if (!zr->v4l_memgrab_active)
 		return 0;
 
@@ -483,7 +495,7 @@ int wait_grab_pending(struct zoran *zr)
 	spin_lock_irqsave(&zr->spinlock, flags);
 	zr36057_set_memgrab(zr, 0);
 	spin_unlock_irqrestore(&zr->spinlock, flags);
-
+#endif
 	return 0;
 }
 
@@ -500,6 +512,7 @@ static inline void set_frame(struct zoran *zr, int val)
 
 static void set_videobus_dir(struct zoran *zr, int val)
 {
+	pr_info("%s val=%d\n", __func__, val);
 	switch (zr->card.type) {
 	case LML33:
 	case LML33R10:
@@ -519,6 +532,8 @@ static void init_jpeg_queue(struct zoran *zr)
 {
 	int i;
 
+	pr_info("%s\n", __func__);
+/*	pci_info(zr->pci_dev, "%s num=%d\n", __func__, zr->jpg_buffers.num_buffers);*/
 	/* re-initialize DMA ring stuff */
 	zr->jpg_que_head = 0;
 	zr->jpg_dma_head = 0;
@@ -530,9 +545,11 @@ static void init_jpeg_queue(struct zoran *zr)
 	zr->jpg_err_seq = 0;
 	zr->jpg_err_shift = 0;
 	zr->jpg_queued_num = 0;
+#ifdef ZORAN_OLD
 	for (i = 0; i < zr->jpg_buffers.num_buffers; i++)
 		zr->jpg_buffers.buffer[i].state = BUZ_STATE_USER;	/* nothing going on */
 
+#endif
 	for (i = 0; i < BUZ_NUM_STAT_COM; i++)
 		zr->stat_com[i] = cpu_to_le32(1);	/* mark as unavailable to zr36057 */
 }
@@ -544,6 +561,7 @@ static void zr36057_set_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 
 	tvn = zr->timing;
 
+	pr_info("%s mode=%d %s\n", __func__, mode, codec_name(mode));
 	/* assert P_Reset, disable code transfer, deassert Active */
 	btwrite(0, ZR36057_JPC);
 
@@ -584,10 +602,10 @@ static void zr36057_set_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 	btwrite(reg, ZR36057_FVAP);
 
 	/* horizontal */
-	if (zr->card.vfe_pol.hsync_pol)
+	if (zr->card.vfe_pol.hsync_pol) {
 		btor(ZR36057_VFEHCR_HSPol, ZR36057_VFEHCR);
-	else
-		btand(~ZR36057_VFEHCR_HSPol, ZR36057_VFEHCR);
+	} else {
+		btand(~ZR36057_VFEHCR_HSPol, ZR36057_VFEHCR);}
 	reg = ((tvn->HSyncStart) << ZR36057_HSP_HsyncStart) |
 	      (tvn->Wt << ZR36057_HSP_LineTot);
 	btwrite(reg, ZR36057_HSP);
@@ -668,10 +686,12 @@ void print_interrupts(struct zoran *zr)
 	if (zr->END_event_missed) {
 		printk(KERN_CONT " ENDs missed: %d", zr->END_event_missed);
 	}
+#ifdef ZORAN_OLD
 	//if (zr->jpg_queued_num) {
 	printk(KERN_CONT " queue_state=%ld/%ld/%ld/%ld", zr->jpg_que_tail,
 	       zr->jpg_dma_tail, zr->jpg_dma_head, zr->jpg_que_head);
 	//}
+#endif
 	if (!noerr)
 		printk(KERN_CONT ": no interrupts detected.");
 	printk(KERN_CONT "\n");
@@ -700,8 +720,10 @@ static u32 count_reset_interrupt(struct zoran *zr)
 {
 	u32 isr;
 
-	isr = btread(ZR36057_ISR) & 0x78000000;
+	/*isr = btread(ZR36057_ISR) & 0x78000000;*/
+	isr = btread(ZR36057_ISR);
 	if (isr) {
+		pr_info("%s: %x\n", __func__, isr);
 		if (isr & ZR36057_ISR_GIRQ1) {
 			btwrite(ZR36057_ISR_GIRQ1, ZR36057_ISR);
 			zr->intr_counter_GIRQ1++;
@@ -726,6 +748,7 @@ void jpeg_start(struct zoran *zr)
 {
 	int reg;
 
+	pci_info(zr->pci_dev, "%s\n", __func__);
 	zr->frame_num = 0;
 
 	/* deassert P_reset, disable code transfer, deassert Active */
@@ -768,12 +791,16 @@ void jpeg_start(struct zoran *zr)
 	set_frame(zr, 1);	// /FRAME
 
 	dprintk(3, KERN_DEBUG "%s: jpeg_start\n", ZR_DEVNAME(zr));
+	zoran_status(zr);
 }
 
 void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 {
 	struct vfe_settings cap;
 	int field_size = zr->buffer_size / zr->jpg_settings.field_per_buff;
+
+	pci_info(zr->pci_dev, "%s: mode=%d\n", __func__, mode);
+
 	zr->codec_mode = mode;
 
 	cap.x = zr->jpg_settings.img_x;
@@ -789,11 +816,14 @@ void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 		struct jpeg_app_marker app;
 		struct jpeg_com_marker com;
 
+		pr_info("%s BUZ_MODE_MOTION_COMPRESS\n", __func__);
 		/* In motion compress mode, the decoder output must be enabled, and
 		 * the video bus direction set to input.
 		 */
 		set_videobus_dir(zr, 0);
+		pr_info("%s decoder_call s_stream 1\n", __func__);
 		decoder_call(zr, video, s_stream, 1);
+		pr_info("%s encoder_call s_routing 0 0 0\n", __func__);
 		encoder_call(zr, video, s_routing, 0, 0, 0);
 
 		/* Take the JPEG codec and the VFE out of sleep */
@@ -837,11 +867,14 @@ void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 	}
 
 	case BUZ_MODE_MOTION_DECOMPRESS:
+		pr_info("%s BUZ_MODE_MOTION_DECOMPRESS\n", __func__);
 		/* In motion decompression mode, the decoder output must be disabled, and
 		 * the video bus direction set to output.
 		 */
+		pr_info("%s decoder_call s_stream 0\n", __func__);
 		decoder_call(zr, video, s_stream, 0);
 		set_videobus_dir(zr, 1);
+		pr_info("%s encoder_call s_routing 1 0 0\n", __func__);
 		encoder_call(zr, video, s_routing, 1, 0, 0);
 
 		/* Take the JPEG codec and the VFE out of sleep */
@@ -867,6 +900,7 @@ void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 
 	case BUZ_MODE_IDLE:
 	default:
+		pr_info("%s BUZ_MODE_IDLE\n", __func__);
 		/* shut down processing */
 		btand(~(zr->card.jpeg_int | ZR36057_ICR_JPEGRepIRQ),
 		      ZR36057_ICR);
@@ -886,7 +920,9 @@ void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 		jpeg_codec_sleep(zr, 1);
 		zr36057_adjust_vfe(zr, mode);
 
+		pr_info("%s encoder_call s_stream 1\n", __func__);
 		decoder_call(zr, video, s_stream, 1);
+		pr_info("%s decoder_call s_routing 0 0 0\n", __func__);
 		encoder_call(zr, video, s_routing, 0, 0, 0);
 
 		dprintk(2, KERN_INFO "%s: enable_jpg(IDLE)\n", ZR_DEVNAME(zr));
@@ -900,39 +936,76 @@ void zoran_feed_stat_com(struct zoran *zr)
 	/* move frames from pending queue to DMA */
 
 	int frame, i, max_stat_com;
+	struct zr_vout_buffer *buf;
+	struct vb2_v4l2_buffer *vbuf;
+	dma_addr_t phys_addr = 0;
+	unsigned int flags;
 
 	max_stat_com =
 	    (zr->jpg_settings.TmpDcm ==
 	     1) ? BUZ_NUM_STAT_COM : (BUZ_NUM_STAT_COM >> 1);
 
+	pci_info(zr->pci_dev, "%s max=%d dma=%ld/%ld\n", __func__, max_stat_com, zr->jpg_dma_head, zr->jpg_dma_tail);
+
+#ifdef ZORAN_OLD
 	while ((zr->jpg_dma_head - zr->jpg_dma_tail) < max_stat_com &&
 	       zr->jpg_dma_head < zr->jpg_que_head) {
 		frame = zr->jpg_pend[zr->jpg_dma_head & BUZ_MASK_FRAME];
+#else
+	while ((zr->jpg_dma_head - zr->jpg_dma_tail) < max_stat_com) {
+		spin_lock_irqsave(&zr->queued_bufs_lock, flags);
+		buf = list_first_entry_or_null(&zr->queued_bufs, struct zr_vout_buffer, queue);
+		if (!buf) {
+			pr_err("No buf\n");
+			return;
+		}
+		list_del(&buf->queue);
+		spin_unlock_irqrestore(&zr->queued_bufs_lock, flags);
+		vbuf = &buf->vbuf;
+		vbuf->vb2_buf.state = VB2_BUF_STATE_ACTIVE;
+		phys_addr = vb2_dma_contig_plane_dma_addr(&vbuf->vb2_buf, 0);
+#endif
 		if (zr->jpg_settings.TmpDcm == 1) {
 			/* fill 1 stat_com entry */
 			i = (zr->jpg_dma_head -
 			     zr->jpg_err_shift) & BUZ_MASK_STAT_COM;
 			if (!(zr->stat_com[i] & cpu_to_le32(1)))
 				break;
-			zr->stat_com[i] =
-			    cpu_to_le32(zr->jpg_buffers.buffer[frame].jpg.frag_tab_bus);
+			pr_info("%s Feed stat_com %d buf=%px phy=%llx\n", __func__, i, buf, phys_addr);
+#ifdef ZORAN_OLD
+			zr->stat_com[i] = cpu_to_le32(zr->jpg_buffers.buffer[frame].jpg.frag_tab_bus);
+#else
+			zr->stat_com[i] = cpu_to_le32(phys_addr);
+			wmb();
+			zr->inuse[i] = buf;
+#endif
 		} else {
 			/* fill 2 stat_com entries */
 			i = ((zr->jpg_dma_head -
 			      zr->jpg_err_shift) & 1) * 2;
 			if (!(zr->stat_com[i] & cpu_to_le32(1)))
 				break;
-			zr->stat_com[i] =
-			    cpu_to_le32(zr->jpg_buffers.buffer[frame].jpg.frag_tab_bus);
-			zr->stat_com[i + 1] =
-			    cpu_to_le32(zr->jpg_buffers.buffer[frame].jpg.frag_tab_bus);
+			pr_info("%s Feed stat_com %d x2 %px\n", __func__, i, buf);
+#ifdef ZORAN_OLD
+			zr->stat_com[i] = cpu_to_le32(zr->jpg_buffers.buffer[frame].jpg.frag_tab_bus);
+			zr->stat_com[i + 1] = cpu_to_le32(zr->jpg_buffers.buffer[frame].jpg.frag_tab_bus);
+#else
+			zr->stat_com[i] = cpu_to_le32(phys_addr);
+			zr->stat_com[i + 1] = cpu_to_le32(phys_addr);
+			zr->inuse[i] = buf;
+			zr->inuse[i + 1] = 0;
+#endif
 		}
+#ifdef ZORAN_OLD
 		zr->jpg_buffers.buffer[frame].state = BUZ_STATE_DMA;
+#endif
 		zr->jpg_dma_head++;
 	}
 	if (zr->codec_mode == BUZ_MODE_MOTION_DECOMPRESS)
 		zr->jpg_queued_num++;
 }
+
+static int first;
 
 /* when this is called the spinlock must be held */
 static void zoran_reap_stat_com(struct zoran *zr)
@@ -943,8 +1016,16 @@ static void zoran_reap_stat_com(struct zoran *zr)
 	u32 stat_com;
 	unsigned int seq;
 	unsigned int dif;
+#ifdef ZORAN_OLD
 	struct zoran_buffer *buffer;
+#endif
 	int frame;
+	struct zr_vout_buffer *buf;
+	u8 *vaddr;
+	unsigned int size = 0;
+	u32 fcnt;
+	for (i = 0; i < 4; i++)
+		pr_info("%s statcom %d %x\n", __func__, i, zr->stat_com[i]);
 
 	/* In motion decompress we don't have a hardware frame counter,
 	 * we just count the interrupts here */
@@ -961,31 +1042,72 @@ static void zoran_reap_stat_com(struct zoran *zr)
 			      zr->jpg_err_shift) & 1) * 2 + 1;
 
 		stat_com = le32_to_cpu(zr->stat_com[i]);
+		fcnt = (stat_com & GENMASK(31,24));
+		size = (stat_com & GENMASK(22,1));
 
+		pr_info("%s stat_com %d %x fcnt=%x,%d size=%x,%d\n", __func__,
+			i, stat_com,
+			fcnt, fcnt >> 24,
+			size, size >> 1	);
 		if ((stat_com & 1) == 0)
 			return;
 
+#ifdef ZORAN_OLD
 		frame = zr->jpg_pend[zr->jpg_dma_tail & BUZ_MASK_FRAME];
 		buffer = &zr->jpg_buffers.buffer[frame];
 		buffer->bs.ts = ktime_get_ns();
+#else
+		buf = zr->inuse[i];
+		buf->vbuf.vb2_buf.timestamp = ktime_get_ns();
+#endif
 
 		if (zr->codec_mode == BUZ_MODE_MOTION_COMPRESS) {
+#ifdef ZORAN_OLD
 			buffer->bs.length = (stat_com & 0x7fffff) >> 1;
+#else
+			size = (stat_com & 0x7fffff) >> 1;
+			vb2_set_plane_payload(&buf->vbuf.vb2_buf, 0, size);
+#endif
 
 			/* update sequence number with the help of the counter in stat_com */
-
 			seq = ((stat_com >> 24) + zr->jpg_err_seq) & 0xff;
 			dif = (seq - zr->jpg_seq_num) & 0xff;
 			zr->jpg_seq_num += dif;
 		} else {
+#ifdef ZORAN_OLD
 			buffer->bs.length = 0;
+#endif
 		}
+#ifdef ZORAN_OLD
 		buffer->bs.seq =
 		    zr->jpg_settings.TmpDcm ==
 		    2 ? (zr->jpg_seq_num >> 1) : zr->jpg_seq_num;
 		buffer->state = BUZ_STATE_DONE;
+		pr_info("Finish buffer %d frame=%d seq=%d size=%d\n", i, frame, buffer->bs.seq, buffer->bs.length);
+		print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET, 16, 1, zr->jpg_buffers.buffer[frame].jpg.frag_tab, 64, false);
+#else
+		buf->vbuf.sequence =
+		    zr->jpg_settings.TmpDcm ==
+		    2 ? (zr->jpg_seq_num >> 1) : zr->jpg_seq_num;
+		zr->inuse[i] = NULL;
+		if (zr->jpg_settings.TmpDcm != 1)
+			buf->vbuf.field = zr->jpg_settings.odd_even ?
+				V4L2_FIELD_TOP : V4L2_FIELD_BOTTOM;
+		else
+			buf->vbuf.field = zr->jpg_settings.odd_even ?
+				V4L2_FIELD_SEQ_TB : V4L2_FIELD_SEQ_BT;
+		pci_info(zr->pci_dev, "Finish buffer %d seq=%d size=%d field=%x bufaddr=%px\n",
+			i, buf->vbuf.sequence, size, buf->vbuf.field, buf);
+		vaddr = vb2_plane_vaddr(&buf->vbuf.vb2_buf, 0);
+		print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET, 16, 1, vaddr, 64, false);
+		vb2_buffer_done(&buf->vbuf.vb2_buf, VB2_BUF_STATE_DONE);
+#endif
 
 		zr->jpg_dma_tail++;
+		if (!first) {
+			zoran_status(zr);
+			first = 1;
+		}
 	}
 }
 
@@ -995,8 +1117,10 @@ static void zoran_restart(struct zoran *zr)
 	unsigned int status = 0;
 	int mode;
 
+	pci_info(zr->pci_dev, "%s\n", __func__);
 	if (zr->codec_mode == BUZ_MODE_MOTION_COMPRESS) {
 		decoder_call(zr, video, g_input_status, &status);
+		pr_info("%s decoder_call video g_input_status status=%d\n", __func__, status);
 		mode = CODEC_DO_COMPRESSION;
 	} else {
 		status = V4L2_IN_ST_NO_SIGNAL;
@@ -1024,12 +1148,13 @@ static void error_handler(struct zoran *zr, u32 astat, u32 stat)
 {
 	int i;
 
+	pr_info("%s XXXXX\n", __func__);
+#ifdef ZORAN_OLD
 	/* This is JPEG error handling part */
 	if (zr->codec_mode != BUZ_MODE_MOTION_COMPRESS &&
 	    zr->codec_mode != BUZ_MODE_MOTION_DECOMPRESS) {
 		return;
 	}
-
 	if ((stat & 1) == 0 &&
 	    zr->codec_mode == BUZ_MODE_MOTION_COMPRESS &&
 	    zr->jpg_dma_tail - zr->jpg_que_tail >= zr->jpg_buffers.num_buffers) {
@@ -1040,7 +1165,6 @@ static void error_handler(struct zoran *zr, u32 astat, u32 stat)
 		zr->JPEG_missed = 0;
 		return;
 	}
-
 	if (zr->JPEG_error == 1) {
 		zoran_restart(zr);
 		return;
@@ -1129,16 +1253,19 @@ static void error_handler(struct zoran *zr, u32 astat, u32 stat)
 	if (zr->codec_mode == BUZ_MODE_MOTION_COMPRESS)
 		zr->jpg_err_seq = zr->jpg_seq_num;	/* + 1; */
 	zoran_restart(zr);
+#endif
 }
 
 irqreturn_t zoran_irq(int irq, void *dev_id)
 {
-	u32 stat, astat;
+	u32 stat, astat, v;
 	int count = 0;
 	struct zoran *zr = dev_id;
 	unsigned long flags;
+	int loop = 0;
 
 	if (zr->testing) {
+		pr_info("%s: testing\n", __func__);
 		/* Testing interrupts */
 		spin_lock_irqsave(&zr->spinlock, flags);
 		while ((stat = count_reset_interrupt(zr))) {
@@ -1154,16 +1281,27 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	spin_lock_irqsave(&zr->spinlock, flags);
-	while (1) {
+/*	spin_lock_irqsave(&zr->spinlock, flags);*/
+	while (loop < 10) {
 		/* get/clear interrupt status bits */
 		stat = count_reset_interrupt(zr);
 		astat = stat & IRQ_MASK;
+		if (loop++ < 10)
+			pr_info("%s: astat: 0x%08x, mask: 0x%08x loop=%d stat=%x\n",
+				__func__, astat, btread(ZR36057_ICR), loop, stat);
 		if (!astat)
 			break;
-		pr_debug("%s: astat: 0x%08x, mask: 0x%08x\n", __func__, astat, btread(ZR36057_ICR));
 		if (astat & zr->card.vsync_int) {	// SW
-
+#ifndef ZORAN_OLD
+			if (zr->v4l_memgrab_active) {
+				if ((btread(ZR36057_VSSFGR) & ZR36057_VSSFGR_FrameGrab) == 0) {
+					zr_set_buf(zr);
+				} else {
+					/*pr_info("%s: WAIT FOR END\n", __func__);*/
+				}
+				return IRQ_HANDLED;
+			}
+#endif
 			if (zr->codec_mode == BUZ_MODE_MOTION_DECOMPRESS ||
 			    zr->codec_mode == BUZ_MODE_MOTION_COMPRESS) {
 				/* count missed interrupts */
@@ -1187,14 +1325,17 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 					if ((btread(ZR36057_VSSFGR) & ZR36057_VSSFGR_FrameGrab) == 0) {
 						/* it is finished, notify the user */
 
+#ifdef ZORAN_OLD
 						zr->v4l_buffers.buffer[zr->v4l_grab_frame].state = BUZ_STATE_DONE;
 						zr->v4l_buffers.buffer[zr->v4l_grab_frame].bs.seq = zr->v4l_grab_seq;
 						zr->v4l_buffers.buffer[zr->v4l_grab_frame].bs.ts = ktime_get_ns();
 						zr->v4l_grab_frame = NO_GRAB_ACTIVE;
 						zr->v4l_pend_tail++;
+#endif
 					}
 				}
 
+#ifdef ZORAN_OLD
 				if (zr->v4l_grab_frame == NO_GRAB_ACTIVE)
 					wake_up_interruptible(&zr->v4l_capq);
 
@@ -1213,6 +1354,8 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 
 					reg = zr->v4l_buffers.buffer[frame].v4l.fbuffer_bus;
 					btwrite(reg, ZR36057_VDTR);
+					pr_info("%s ZR36057_VDTR %x frame=%d height=%d BUZ_MAX_HEIGHT=%d bytesperline=%d\n",
+						__func__, reg, frame, zr->v4l_settings.height, BUZ_MAX_HEIGHT, zr->v4l_settings.bytesperline);
 					if (zr->v4l_settings.height > BUZ_MAX_HEIGHT / 2)
 						reg += zr->v4l_settings.bytesperline;
 					btwrite(reg, ZR36057_VDBR);
@@ -1228,7 +1371,9 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 					btwrite(reg, ZR36057_VSSFGR);
 
 					btor(ZR36057_VDCR_VidEn, ZR36057_VDCR);
+					zoran_status(zr);
 				}
+#endif
 			}
 
 			/*
@@ -1240,7 +1385,7 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 #if (IRQ_MASK & ZR36057_ISR_CodRepIRQ)
 		if (astat & ZR36057_ISR_CodRepIRQ) {
 			zr->intr_counter_CodRepIRQ++;
-			IDEBUG(printk(KERN_DEBUG "%s: ZR36057_ISR_CodRepIRQ\n", ZR_DEVNAME(zr)));
+			pr_info("%s: ZR36057_ISR_CodRepIRQ\n", ZR_DEVNAME(zr));
 			btand(~ZR36057_ICR_CodRepIRQ, ZR36057_ICR);
 		}
 #endif				/* (IRQ_MASK & ZR36057_ISR_CodRepIRQ) */
@@ -1308,13 +1453,14 @@ irqreturn_t zoran_irq(int irq, void *dev_id)
 		}
 		zr->last_isr = stat;
 	}
-	spin_unlock_irqrestore(&zr->spinlock, flags);
+/*	spin_unlock_irqrestore(&zr->spinlock, flags);*/
 
 	return IRQ_HANDLED;
 }
 
 void zoran_set_pci_master(struct zoran *zr, int set_master)
 {
+	pci_info(zr->pci_dev, "%s setmaster=%d\n", __func__, set_master);
 	if (set_master) {
 		pci_set_master(zr->pci_dev);
 	} else {
@@ -1328,6 +1474,8 @@ void zoran_set_pci_master(struct zoran *zr, int set_master)
 
 void zoran_init_hardware(struct zoran *zr)
 {
+
+	pci_info(zr->pci_dev,"%s %d\n", __func__, __LINE__);
 	/* Enable bus-mastering */
 	zoran_set_pci_master(zr, 1);
 
@@ -1335,13 +1483,19 @@ void zoran_init_hardware(struct zoran *zr)
 	if (zr->card.init)
 		zr->card.init(zr);
 
+	pr_info("%s decoder_call core init 0\n", __func__);
 	decoder_call(zr, core, init, 0);
+	pr_info("%s decoder_call s_std norm=%lld\n", __func__, zr->norm);
 	decoder_call(zr, video, s_std, zr->norm);
+	pr_info("%s decoder_call s_routing muxsel=%d 0 0\n", __func__, zr->card.input[zr->input].muxsel);
 	decoder_call(zr, video, s_routing,
 		     zr->card.input[zr->input].muxsel, 0, 0);
 
+	pr_info("%s encoder_call core init 0\n", __func__);
 	encoder_call(zr, core, init, 0);
+	pr_info("%s encoder_call s_std_output norm=%lld\n", __func__, zr->norm);
 	encoder_call(zr, video, s_std_output, zr->norm);
+	pr_info("%s encoder_call s_routing 0 0 0\n", __func__);
 	encoder_call(zr, video, s_routing, 0, 0, 0);
 
 	/* toggle JPEG codec sleep to sync PLL */
@@ -1356,15 +1510,16 @@ void zoran_init_hardware(struct zoran *zr)
 
 	zr36057_enable_jpg(zr, BUZ_MODE_IDLE);
 
-	btwrite(IRQ_MASK, ZR36057_ISR);	// Clears interrupts
+	btwrite(IRQ_MASK, ZR36057_ISR);
 }
 
 void zr36057_restart(struct zoran *zr)
 {
+	pr_info("%s\n", __func__);
 	btwrite(0, ZR36057_SPGPPCR);
-	mdelay(1);
+	udelay(1000);
 	btor(ZR36057_SPGPPCR_SoftReset, ZR36057_SPGPPCR);
-	mdelay(1);
+	udelay(1000);
 
 	/* assert P_Reset */
 	btwrite(0, ZR36057_JPC);

@@ -625,6 +625,7 @@ static struct card_info zoran_cards[NUM_CARDS] = {
 static int zr_dbgfs_read(struct seq_file *seq, void *v)
 {
 	struct zoran *zr = seq->private;
+	u32 u;
 
 	seq_printf(seq, "GIRQ0 %d:\n", zr->intr_counter_GIRQ0);
 	seq_printf(seq, "GIRQ1 %d:\n", zr->intr_counter_GIRQ1);
@@ -638,8 +639,69 @@ static int zr_dbgfs_read(struct seq_file *seq, void *v)
 	seq_printf(seq, "END_event_missed %d:\n", zr->END_event_missed);
 	seq_printf(seq, "JPEG_in %d:\n", zr->JPEG_in);
 	seq_printf(seq, "JPEG_out %d:\n", zr->JPEG_out);
-	seq_printf(seq, "JPEG_0 %d:\n", zr->JPEG_0);
-	seq_printf(seq, "JPEG_1 %d:\n", zr->JPEG_1);
+	seq_printf(seq, "JPEG_0: %d\n", zr->JPEG_0);
+	seq_printf(seq, "JPEG_1: %d\n", zr->JPEG_1);
+
+	u = btread(ZR36057_VFEHCR);
+	seq_printf(seq, "ZR36057_VFEHCR: %x\n", u);
+	u = btread(ZR36057_VFEVCR);
+	seq_printf(seq, "ZR36057_VFEVCR: %x\n", u);
+	u = btread(ZR36057_VFESPFR);
+	seq_printf(seq, "ZR36057_VFESPFR: %x\n", u);
+	u = btread(ZR36057_VDTR);
+	seq_printf(seq, "ZR36057_VDTR: %x\n", u);
+	u = btread(ZR36057_VDBR);
+	seq_printf(seq, "ZR36057_VDBR: %x\n", u);
+	u = btread(ZR36057_VSSFGR);
+	seq_printf(seq, "ZR36057_VSSFGR: %x\n", u);
+	u = btread(ZR36057_VDCR);
+	seq_printf(seq, "ZR36057_VDCR: %x\n", u);
+	u = btread(ZR36057_MMTR);
+	seq_printf(seq, "ZR36057_MMTR: %x\n", u);
+	u = btread(ZR36057_MMBR);
+	seq_printf(seq, "ZR36057_MMBR: %x\n", u);
+	u = btread(ZR36057_OCR);
+	seq_printf(seq, "ZR36057_OCR: %x\n", u);
+	u = btread(ZR36057_SPGPPCR);
+	seq_printf(seq, "ZR36057_SPGPPCR: %x\n", u);
+	u = btread(ZR36057_GPPGCR1);
+	seq_printf(seq, "ZR36057_GPPGCR1: %x\n", u);
+	u = btread(ZR36057_MCSAR);
+	seq_printf(seq, "ZR36057_MCSAR: %x\n", u);
+	u = btread(ZR36057_MCTCR);
+	seq_printf(seq, "ZR36057_MCTCR: %x\n", u);
+	u = btread(ZR36057_MCMPR);
+	seq_printf(seq, "ZR36057_MCMPR: %x\n", u);
+	u = btread(ZR36057_ISR);
+	seq_printf(seq, "ZR36057_ISR: %x\n", u);
+	u = btread(ZR36057_ICR);
+	seq_printf(seq, "ZR36057_ICR: %x\n", u);
+	u = btread(ZR36057_I2CBR);
+	seq_printf(seq, "ZR36057_I2CBR: %x\n", u);
+	u = btread(ZR36057_JMC);
+	seq_printf(seq, "ZR36057_JMC: %x\n", u);
+	u = btread(ZR36057_JPC);
+	seq_printf(seq, "ZR36057_JPC: %x\n", u);
+	u = btread(ZR36057_VSP);
+	seq_printf(seq, "ZR36057_VSP: %x\n", u);
+	u = btread(ZR36057_HSP);
+	seq_printf(seq, "ZR36057_HSP: %x\n", u);
+	u = btread(ZR36057_FVAP);
+	seq_printf(seq, "ZR36057_FVAP: %x\n", u);
+	u = btread(ZR36057_FPP);
+	seq_printf(seq, "ZR36057_FPP: %x\n", u);
+	u = btread(ZR36057_JCBA);
+	seq_printf(seq, "ZR36057_JCBA: %x\n", u);
+	u = btread(ZR36057_JCFT);
+	seq_printf(seq, "ZR36057_JCFT: %x\n", u);
+	u = btread(ZR36057_JCGI);
+	seq_printf(seq, "ZR36057_JCGI: %x\n", u);
+	u = btread(ZR36057_GCR2);
+	seq_printf(seq, "ZR36057_GCR2: %x\n", u);
+	u = btread(ZR36057_POR);
+	seq_printf(seq, "ZR36057_POR: %x\n", u);
+	u = btread(ZR36057_STR);
+	seq_printf(seq, "ZR36057_STR: %x\n", u);
 
 	return 0;
 }
@@ -882,6 +944,7 @@ void zoran_open_init_params(struct zoran *zr)
 {
 	int i;
 
+	pr_info("%s\n", __func__);
 	/* User must explicitly set a window */
 	zr->v4l_memgrab_active = 0;
 	zr->v4l_grab_frame = NO_GRAB_ACTIVE;
@@ -893,6 +956,7 @@ void zoran_open_init_params(struct zoran *zr)
 	    zr->v4l_settings.width *
 	    ((zr->v4l_settings.format->depth + 7) / 8);
 
+#ifdef ZORAN_OLD
 	/* DMA ring stuff for V4L */
 	zr->v4l_pend_tail = 0;
 	zr->v4l_pend_head = 0;
@@ -908,6 +972,7 @@ void zoran_open_init_params(struct zoran *zr)
 	}
 	zr->jpg_buffers.active = ZORAN_FREE;
 	zr->jpg_buffers.allocated = 0;
+#endif
 	/* Set necessary params and call zoran_check_jpg_settings to set the defaults */
 	zr->jpg_settings.decimation = 1;
 	zr->jpg_settings.jpg_comp.quality = 50;	/* default compression factor 8 */
@@ -966,39 +1031,47 @@ static int zr36057_init(struct zoran *zr)
 		"%s: %s - initializing card[%d], zr=%p\n",
 		ZR_DEVNAME(zr), __func__, zr->id, zr);
 
+	pci_info(zr->pci_dev, "%s\n", __func__);
 	/* default setup of all parameters which will persist between opens */
+#ifdef ZORAN_OLD
 	zr->user = 0;
-
+#endif
 	init_waitqueue_head(&zr->v4l_capq);
 	init_waitqueue_head(&zr->jpg_capq);
 	init_waitqueue_head(&zr->test_q);
+	spin_lock_init(&zr->queued_bufs_lock);
+	INIT_LIST_HEAD(&zr->queued_bufs);
+
+#ifdef ZORAN_OLD
 	zr->jpg_buffers.allocated = 0;
 	zr->v4l_buffers.allocated = 0;
+#endif
 
+#ifdef ZORAN_OLD
 	zr->vbuf_base = (void *)vidmem;
 	zr->vbuf_width = 0;
 	zr->vbuf_height = 0;
 	zr->vbuf_depth = 0;
 	zr->vbuf_bytesperline = 0;
-
+#endif
 	/* Avoid nonsense settings from user for default input/norm */
 	if (default_norm < 0 || default_norm > 2)
 		default_norm = 0;
 	if (default_norm == 0) {
 		zr->norm = V4L2_STD_PAL;
-		zr->timing = zr->card.tvn[0];
+		zr->timing = zr->card.tvn[ZR_NORM_PAL];
 	} else if (default_norm == 1) {
 		zr->norm = V4L2_STD_NTSC;
-		zr->timing = zr->card.tvn[1];
+		zr->timing = zr->card.tvn[ZR_NORM_NTSC];
 	} else {
 		zr->norm = V4L2_STD_SECAM;
-		zr->timing = zr->card.tvn[2];
+		zr->timing = zr->card.tvn[ZR_NORM_SECAM];
 	}
 	if (!zr->timing) {
 		pr_warn("%s: %s - default TV standard not supported by hardware. PAL will be used.\n",
 			ZR_DEVNAME(zr), __func__);
 		zr->norm = V4L2_STD_PAL;
-		zr->timing = zr->card.tvn[0];
+		zr->timing = zr->card.tvn[ZR_NORM_PAL];
 	}
 
 	if (default_input > zr->card.inputs - 1) {
@@ -1035,17 +1108,43 @@ static int zr36057_init(struct zoran *zr)
 	   one and the same device. This should really be split up into two
 	   device nodes, but that's a job for another day. */
 	zr->video_dev->vfl_dir = VFL_DIR_M2M;
+
+
+#ifndef ZORAN_OLD
+	zoran_queue_init(zr, &zr->vq);
+#endif
+
+	/* TODO: create two devices */
+#ifdef COMPLIANCE
+	zr->video_dev->device_caps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_CAPTURE;
+#else
+	zr->video_dev->device_caps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_OUTPUT;
+#endif
+
 	err = video_register_device(zr->video_dev, VFL_TYPE_GRABBER, video_nr[zr->id]);
 	if (err < 0)
 		goto exit_free;
 	video_set_drvdata(zr->video_dev, zr);
 
 	zoran_init_hardware(zr);
-	if (zr36067_debug > 2)
-		detect_guest_activity(zr);
+	/*if (zr36067_debug > 2)
+		detect_guest_activity(zr);*/
+#ifndef ZORAN_OLD
+	/* simulatefirst open*/
+	/*	zr36057_restart(zr);
+		zoran_open_init_params(zr);
+		zoran_init_hardware(zr);
+
+		btor(ZR36057_ICR_IntPinEn, ZR36057_ICR);*/
+		/*btwrite(0x68000000, ZR36057_ISR);*/
+#endif
+#ifdef ZORAN_OLD
 	test_interrupts(zr);
+#endif
 	if (!pass_through) {
+		pr_info("%s decoder_call video s-stream 0\n", __func__);
 		decoder_call(zr, video, s_stream, 0);
+		pr_info("%s encoder_call video s_routing 2 0 0\n", __func__);
 		encoder_call(zr, video, s_routing, 2, 0, 0);
 	}
 
@@ -1055,6 +1154,7 @@ static int zr36057_init(struct zoran *zr)
 
 	zr->zoran_proc = NULL;
 	zr->initialized = 1;
+	pr_info("%s ========================== end\n", __func__);
 	return 0;
 
 exit_free:
@@ -1068,6 +1168,7 @@ static void zoran_remove(struct pci_dev *pdev)
 	struct v4l2_device *v4l2_dev = dev_get_drvdata(&pdev->dev);
 	struct zoran *zr = to_zoran(v4l2_dev);
 
+	pci_info(zr->pci_dev, "%s\n", __func__);
 	if (!zr->initialized)
 		goto exit_free;
 
@@ -1116,6 +1217,7 @@ static struct videocodec_master *zoran_setup_videocodec(struct zoran *zr,
 {
 	struct videocodec_master *m = NULL;
 
+	pr_info("%s\n", __func__);
 	m = kmalloc(sizeof(struct videocodec_master), GFP_KERNEL);
 	if (!m) {
 		pr_err("%s: %s - no memory\n", ZR_DEVNAME(zr), __func__);
@@ -1160,6 +1262,7 @@ static void zoran_subdev_notify(struct v4l2_subdev *sd, unsigned int cmd, void *
 {
 	struct zoran *zr = to_zoran(sd->v4l2_dev);
 
+	pr_info("%s\n", __func__);
 	/* Bt819 needs to reset its FIFO buffer using #FRST pin and
 	   LML33 card uses GPIO(7) for that. */
 	if (cmd == BT819_FIFO_RESET_LOW)
@@ -1182,6 +1285,12 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	int card_num;
 	char *codec_name, *vfe_name;
 	unsigned int nr;
+	int err;
+
+	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+	if (err)
+		return -ENODEV;
+	vb2_dma_contig_set_max_seg_size(&pdev->dev, DMA_BIT_MASK(32));
 
 	nr = zoran_num++;
 	if (nr >= BUZ_MAX) {
@@ -1353,7 +1462,9 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	/* take care of Natoma chipset and a revision 1 zr36057 */
 	if ((pci_pci_problems & PCIPCI_NATOMA) && zr->revision <= 1) {
+#ifdef ZORAN_OLD
 		zr->jpg_buffers.need_contiguous = 1;
+#endif
 		pr_info("%s: ZR36057/Natoma bug, max. buffer size is 128K\n",
 			ZR_DEVNAME(zr));
 	}
@@ -1362,6 +1473,8 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		goto zr_detach_vfe;
 
 	zoran_proc_init(zr);
+
+	pr_info("%s end\n", __func__);
 
 	return 0;
 

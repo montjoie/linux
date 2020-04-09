@@ -47,6 +47,7 @@
 #include "zoran_procfs.h"
 #include "zoran_card.h"
 
+#ifdef PROC_OLD
 #ifdef CONFIG_PROC_FS
 struct procfs_params_zr36067 {
 	char *name;
@@ -121,7 +122,6 @@ static int zoran_show(struct seq_file *p, void *v)
 			   btread(i), btread(i + 4), btread(i + 8), btread(i + 12));
 	return 0;
 }
-
 static int zoran_open(struct inode *inode, struct file *file)
 {
 	struct zoran *data = PDE_DATA(inode);
@@ -170,18 +170,19 @@ static ssize_t zoran_write(struct file *file, const char __user *buffer,
 	return count;
 }
 
-static const struct file_operations zoran_operations = {
-	.owner		= THIS_MODULE,
-	.open		= zoran_open,
-	.read		= seq_read,
-	.write		= zoran_write,
-	.llseek		= seq_lseek,
-	.release	= single_release,
+static const struct proc_ops zoran_operations = {
+	.proc_open		= zoran_open,
+	.proc_read		= seq_read,
+	.proc_write		= zoran_write,
+	.proc_llseek		= seq_lseek,
+	.proc_release	= single_release,
 };
+#endif
 #endif
 
 int zoran_proc_init(struct zoran *zr)
 {
+#ifdef PROC_OLD
 #ifdef CONFIG_PROC_FS
 	char name[8];
 
@@ -197,11 +198,13 @@ int zoran_proc_init(struct zoran *zr)
 		return 1;
 	}
 #endif
+#endif
 	return 0;
 }
 
 void zoran_proc_cleanup(struct zoran *zr)
 {
+#ifdef PROC_OLD
 #ifdef CONFIG_PROC_FS
 	char name[8];
 
@@ -210,4 +213,6 @@ void zoran_proc_cleanup(struct zoran *zr)
 		remove_proc_entry(name, NULL);
 	zr->zoran_proc = NULL;
 #endif
+#endif
 }
+

@@ -31,6 +31,36 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-fh.h>
+#include <media/videobuf2-core.h>
+#include <media/videobuf2-v4l2.h>
+#include <media/videobuf2-dma-contig.h>
+
+/* #define ZORAN_OLD */
+/*#define COMPLIANCE*/
+
+#define ZR_NORM_PAL 0
+#define ZR_NORM_NTSC 1
+#define ZR_NORM_SECAM 2
+
+static const char *norm_name(int c)
+{
+	switch(c) {
+	case ZR_NORM_PAL:
+		return "PAL";
+	case ZR_NORM_NTSC:
+		return "NTSC";
+	case ZR_NORM_SECAM:
+		return "SECAM";
+	default:
+		if (c & V4L2_STD_SECAM)
+			return "SECAM";
+		else if (c & V4L2_STD_NTSC)
+			return "NTSC";
+		else
+			return "PAL";
+	}
+	return "UNKNOW NORM";
+}
 
 struct zoran_sync {
 	unsigned long frame;	/* number of buffer that has been free'd */
@@ -39,6 +69,18 @@ struct zoran_sync {
 	u64 ts;			/* timestamp */
 };
 
+struct zr_vout_buffer {
+       /* common v4l buffer stuff -- must be first */
+       struct vb2_v4l2_buffer          vbuf;
+       struct list_head                queue;
+};
+
+static inline struct zr_vout_buffer *vb2_to_zr_vout_buffer(struct vb2_buffer *vb)
+{
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+
+	return container_of(vbuf, struct zr_vout_buffer, vbuf);
+}
 
 #define ZORAN_NAME    "ZORAN"	/* name of the device */
 
@@ -102,19 +144,46 @@ enum zoran_codec_mode {
 	BUZ_MODE_STILL_DECOMPRESS	/* still frame conversion */
 };
 
+static const char *codec_name(int c)
+{
+	switch(c) {
+	case BUZ_MODE_IDLE:
+		return "BUZ_MODE_IDLE";
+	case BUZ_MODE_MOTION_COMPRESS:
+		return "BUZ_MODE_MOTION_COMPRESS";
+	case BUZ_MODE_MOTION_DECOMPRESS:
+		return "BUZ_MODE_MOTION_DECOMPRESS";
+	}
+	return "UNKNOW CODE";
+}
+
+#ifdef ZORAN_OLD
 enum zoran_buffer_state {
 	BUZ_STATE_USER,		/* buffer is owned by application */
 	BUZ_STATE_PEND,		/* buffer is queued in pend[] ready to feed to I/O */
 	BUZ_STATE_DMA,		/* buffer is queued in dma[] for I/O */
 	BUZ_STATE_DONE		/* buffer is ready to return to application */
 };
-
+#endif
 enum zoran_map_mode {
 	ZORAN_MAP_MODE_RAW,
 	ZORAN_MAP_MODE_JPG_REC,
 #define ZORAN_MAP_MODE_JPG ZORAN_MAP_MODE_JPG_REC
 	ZORAN_MAP_MODE_JPG_PLAY,
 };
+
+static const char *map_mode(int c)
+{
+	switch(c) {
+	case ZORAN_MAP_MODE_RAW:
+		return "ZORAN_MAP_MODE_RAW";
+	case ZORAN_MAP_MODE_JPG_REC:
+		return "ZORAN_MAP_MODE_JPG_REC";
+	case ZORAN_MAP_MODE_JPG_PLAY:
+		return "ZORAN_MAP_MODE_JPG_PLAY";
+	}
+	return "UNKNOWN";
+}
 
 enum gpio_type {
 	ZR_GPIO_JPEG_SLEEP = 0,
@@ -164,8 +233,11 @@ struct zoran_jpg_settings {
 	struct v4l2_jpegcompression jpg_comp;	/* JPEG-specific capture settings */
 };
 
+#ifdef ZORAN_OLD
 struct zoran_fh;
+#endif
 
+#ifdef ZORAN_OLD
 struct zoran_mapping {
 	struct zoran_fh *fh;
 	atomic_t count;
@@ -203,6 +275,7 @@ struct zoran_buffer_col {
 	u8 need_contiguous;	/* Flag if contiguous buffers are needed */
 	/* only applies to jpg buffers, raw buffers are always contiguous */
 };
+#endif
 
 struct zoran;
 
@@ -211,9 +284,11 @@ struct zoran_fh {
 	struct v4l2_fh fh;
 	struct zoran *zr;
 
+#ifdef ZORAN_OLD
 	enum zoran_map_mode map_mode;		/* Flag which bufferset will map by next mmap() */
 
 	struct zoran_buffer_col buffers;	/* buffers' info */
+#endif
 };
 
 struct card_info {
@@ -256,6 +331,7 @@ struct zoran {
 	struct v4l2_device v4l2_dev;
 	struct v4l2_ctrl_handler hdl;
 	struct video_device *video_dev;
+	struct vb2_queue vq;
 
 	struct i2c_adapter i2c_adapter;	/* */
 	struct i2c_algo_bit_data i2c_algo;	/* */
@@ -270,7 +346,9 @@ struct zoran {
 	struct mutex lock;	/* file ops serialize lock */
 
 	u8 initialized;		/* flag if zoran has been correctly initialized */
+#ifdef ZORAN_OLD
 	int user;		/* number of current users */
+#endif
 	struct card_info card;
 	struct tvnorm *timing;
 
@@ -302,13 +380,14 @@ struct zoran {
 	unsigned long v4l_grab_seq;	/* Number of frames grabbed */
 	struct zoran_v4l_settings v4l_settings;	/* structure with a lot of things to play with */
 
+#ifdef ZORAN_OLD
 	/* V4L grab queue of frames pending */
 	unsigned long v4l_pend_head;
 	unsigned long v4l_pend_tail;
 	unsigned long v4l_sync_tail;
 	int v4l_pend[V4L_MAX_FRAME];
 	struct zoran_buffer_col v4l_buffers;	/* V4L buffers' info */
-
+#endif
 	/* Buz MJPEG parameters */
 	enum zoran_codec_mode codec_mode;	/* status of codec */
 	struct zoran_jpg_settings jpg_settings;	/* structure with a lot of things to play with */
@@ -333,8 +412,10 @@ struct zoran {
 	/* (value & BUZ_MASK_FRAME) corresponds to index in pend[] queue */
 	int jpg_pend[BUZ_MAX_FRAME];
 
+#ifdef ZORAN_OLD
 	/* array indexed by frame number */
 	struct zoran_buffer_col jpg_buffers;	/* MJPEG buffers' info */
+#endif
 
 	/* Additional stuff for testing */
 #ifdef CONFIG_PROC_FS
@@ -367,8 +448,12 @@ struct zoran {
 
 	wait_queue_head_t test_q;
 
+	enum zoran_map_mode map_mode;
 	struct dentry *dbgfs_dir;
 	struct dentry *dbgfs_stats;
+	struct list_head queued_bufs;
+	spinlock_t queued_bufs_lock; /* Protects queued_bufs */
+	struct zr_vout_buffer *inuse[BUZ_NUM_STAT_COM];
 };
 
 static inline struct zoran *to_zoran(struct v4l2_device *v4l2_dev)
@@ -376,13 +461,91 @@ static inline struct zoran *to_zoran(struct v4l2_device *v4l2_dev)
 	return container_of(v4l2_dev, struct zoran, v4l2_dev);
 }
 
+static void btprint(u32 dat, u32 adr)
+{
+	switch(adr) {
+	case ZR36057_ICR:
+		pr_info("btwrite: ZR36057_ICR %x", dat);
+		break;
+	case ZR36057_ISR:
+		pr_info("btwrite: ZR36057_ISR %x", dat);
+		break;
+	case ZR36057_VSSFGR:
+		pr_info("btwrite: ZR36057_VSSFGR %x", dat);
+		break;
+	case ZR36057_VFEHCR:
+		pr_info("btwrite: ZR36057_VFEHCR %x", dat);
+		break;
+	case ZR36057_VFEVCR:
+		pr_info("btwrite: ZR36057_VFEVCR %x", dat);
+		break;
+	case ZR36057_VFESPFR:
+		pr_info("btwrite: ZR36057_VFESPFR %x", dat);
+		break;
+	case ZR36057_VDCR:
+		pr_info("btwrite: ZR36057_VDCR %x", dat);
+		if (!(dat & ZR36057_VDCR_Triton))
+			pr_info("TRITON\n");
+		break;
+	case ZR36057_VDBR:
+		pr_info("btwrite: ZR36057_VDBR %x", dat);
+		break;
+	case ZR36057_VDTR:
+		pr_info("btwrite: ZR36057_VDTR %x", dat);
+		break;
+	case ZR36057_POR:
+		break;
+	case ZR36057_JMC:
+		pr_info("btwrite: ZR36057_JMCZ %x", dat);
+		break;
+	case ZR36057_MCTCR:
+		pr_info("btwrite: ZR36057_MCTCR %x\n", dat);
+		break;
+	case ZR36057_JPC:
+		pr_info("btwrite: ZR36057_JPC %x\n", dat);
+		break;
+	case ZR36057_VSP:
+		pr_info("btwrite: ZR36057_VSP %x\n", dat);
+		break;
+	case ZR36057_HSP:
+		pr_info("btwrite: ZR36057_HSP %x\n", dat);
+		break;
+	case ZR36057_FHAP:
+		pr_info("btwrite: ZR36057_FHAP %x\n", dat);
+		break;
+	case ZR36057_FVAP:
+		pr_info("btwrite: ZR36057_FVAP %x\n", dat);
+		break;
+	case ZR36057_GPPGCR1:
+		pr_info("btwrite: ZR36057_GPPGCR1 %x", dat);
+		break;
+	case ZR36057_FPP:
+		pr_info("btwrite: ZR36057_FPP %x", dat);
+		break;
+	case ZR36057_JCBA:
+		pr_info("btwrite: ZR36057_JCBA %x", dat);
+		break;
+	case ZR36057_JCFT:
+		pr_info("btwrite: ZR36057_JCFT %x", dat);
+		break;
+	case 0x044:
+		break;
+	default:
+		pr_info("btwrite: %x %x", adr, dat);
+	}
+}
+
 /* There was something called _ALPHA_BUZ that used the PCI address instead of
  * the kernel iomapped address for btread/btwrite.  */
-#define btwrite(dat, adr)    writel((dat), zr->zr36057_mem + (adr))
+#define btwrite(dat, adr)    {btprint(dat, adr); writel((dat), zr->zr36057_mem + (adr));}
 #define btread(adr)         readl(zr->zr36057_mem + (adr))
 
 #define btand(dat, adr)      btwrite((dat) & btread(adr), adr)
 #define btor(dat, adr)       btwrite((dat) | btread(adr), adr)
 #define btaor(dat, mask, adr) btwrite((dat) | ((mask) & btread(adr)), adr)
 
+#endif
+
+#ifndef ZORAN_OLD
+int zoran_queue_init(struct zoran *zr, struct vb2_queue *vq);
 #endif
