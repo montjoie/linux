@@ -2260,6 +2260,7 @@ EXPORT_SYMBOL_GPL(vb2_get_unmapped_area);
 
 int vb2_core_queue_init(struct vb2_queue *q)
 {
+	pr_info("%s %d\n", __func__, __LINE__);
 	/*
 	 * Sanity check
 	 */
@@ -2272,20 +2273,24 @@ int vb2_core_queue_init(struct vb2_queue *q)
 	    WARN_ON(!q->ops->buf_queue))
 		return -EINVAL;
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	if (WARN_ON(q->requires_requests && !q->supports_requests))
 		return -EINVAL;
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	INIT_LIST_HEAD(&q->queued_list);
 	INIT_LIST_HEAD(&q->done_list);
 	spin_lock_init(&q->done_lock);
 	mutex_init(&q->mmap_lock);
 	init_waitqueue_head(&q->done_wq);
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	q->memory = VB2_MEMORY_UNKNOWN;
 
 	if (q->buf_struct_size == 0)
 		q->buf_struct_size = sizeof(struct vb2_buffer);
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	if (q->bidirectional)
 		q->dma_dir = DMA_BIDIRECTIONAL;
 	else

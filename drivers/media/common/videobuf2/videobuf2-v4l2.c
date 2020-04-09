@@ -825,6 +825,7 @@ EXPORT_SYMBOL_GPL(vb2_expbuf);
 
 int vb2_queue_init(struct vb2_queue *q)
 {
+	pr_info("%s %d\n", __func__, __LINE__);
 	/*
 	 * Sanity check
 	 */
@@ -834,19 +835,23 @@ int vb2_queue_init(struct vb2_queue *q)
 		      V4L2_BUF_FLAG_TSTAMP_SRC_MASK)))
 		return -EINVAL;
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	/* Warn that the driver should choose an appropriate timestamp type */
 	WARN_ON((q->timestamp_flags & V4L2_BUF_FLAG_TIMESTAMP_MASK) ==
 		V4L2_BUF_FLAG_TIMESTAMP_UNKNOWN);
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	/* Warn that vb2_memory should match with v4l2_memory */
 	if (WARN_ON(VB2_MEMORY_MMAP != (int)V4L2_MEMORY_MMAP)
 		|| WARN_ON(VB2_MEMORY_USERPTR != (int)V4L2_MEMORY_USERPTR)
 		|| WARN_ON(VB2_MEMORY_DMABUF != (int)V4L2_MEMORY_DMABUF))
 		return -EINVAL;
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	if (q->buf_struct_size == 0)
 		q->buf_struct_size = sizeof(struct vb2_v4l2_buffer);
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	q->buf_ops = &v4l2_buf_ops;
 	q->is_multiplanar = V4L2_TYPE_IS_MULTIPLANAR(q->type);
 	q->is_output = V4L2_TYPE_IS_OUTPUT(q->type);
@@ -859,6 +864,7 @@ int vb2_queue_init(struct vb2_queue *q)
 	 */
 	q->quirk_poll_must_check_waiting_for_buffers = true;
 
+	pr_info("%s %d\n", __func__, __LINE__);
 	return vb2_core_queue_init(q);
 }
 EXPORT_SYMBOL_GPL(vb2_queue_init);
