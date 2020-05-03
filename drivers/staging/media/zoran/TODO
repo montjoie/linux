@@ -1,18 +1,27 @@
 
 How to test
 - RAW capture
-	mplayer tv:///dev/video0 -tv driver=v4l2 -vo png:outdir=/root/png
+	mplayer tv:///dev/video0 -tv driver=v4l2
 
 - MJPEG capture
 	mplayer tv:///dev/video0 -tv driver=v4l2:outfmt=mjpeg
 	two test for both Dcim path
 
 - MJPEG play
+	ffmpeg -i test.avi -vcodec mjpeg -an -f v4l2 /dev/video0
 
-- Does MPEG is working ?
+	mplayer vo_zr/vo_zr2 does not compile and is a dead end
 
+- Does MPEG is doable ?
+
+
+TODO
+- split patchs
+- use devm
+- made output work
 
 PATCHSET:
-- convert ktime compat
+- timeval patch
 - kzalloc stat com do devm_
 - virt_to_bus to dma coherent
+- big vb2 patch
