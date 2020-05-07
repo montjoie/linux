@@ -166,9 +166,9 @@ enum zoran_buffer_state {
 };
 #endif
 enum zoran_map_mode {
+	ZORAN_MAP_MODE_NONE,
 	ZORAN_MAP_MODE_RAW,
 	ZORAN_MAP_MODE_JPG_REC,
-#define ZORAN_MAP_MODE_JPG ZORAN_MAP_MODE_JPG_REC
 	ZORAN_MAP_MODE_JPG_PLAY,
 };
 
@@ -442,6 +442,7 @@ struct zoran {
 	int num_errors;
 	int JPEG_max_missed;
 	int JPEG_min_missed;
+	unsigned int ghost_int;
 
 	u32 last_isr;
 	unsigned long frame_num;
@@ -457,6 +458,8 @@ struct zoran {
 	dma_addr_t p_sc;
 	__le32 *stat_comb;
 	dma_addr_t p_scb;
+	int running;
+	int buf_in_reserve;
 };
 
 static inline struct zoran *to_zoran(struct v4l2_device *v4l2_dev)
@@ -466,6 +469,7 @@ static inline struct zoran *to_zoran(struct v4l2_device *v4l2_dev)
 
 static void btprint(u32 dat, u32 adr)
 {
+	return;
 	switch(adr) {
 	case ZR36057_ICR:
 		pr_info("btwrite: ZR36057_ICR %x", dat);

@@ -49,6 +49,7 @@ extern int wait_grab_pending(struct zoran *zr);
 extern void print_interrupts(struct zoran *zr);
 extern void clear_interrupt_counters(struct zoran *zr);
 extern irqreturn_t zoran_irq(int irq, void *dev_id);
+extern irqreturn_t zoran_irqng(int irq, void *dev_id);
 
 /* JPEG codec access */
 extern void jpeg_start(struct zoran *zr);
