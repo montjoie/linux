@@ -160,7 +160,7 @@ int zoran_status(struct zoran *zr)
 	pci_info(zr->pci_dev, "Norm is %s\n", norm_name(zr->norm));
 	pci_info(zr->pci_dev, "Input is %d %s\n", zr->input, zr->card.input[zr->input].name);
 	pci_info(zr->pci_dev, "MAPMODE is %s\n", map_mode(zr->map_mode));
-
+/*
 	v = btread(ZR36057_VFEHCR);
 	pci_info(zr->pci_dev, "ZR36057_VFEHCR %x\n", v);
 	v = btread(ZR36057_VFEVCR);
@@ -174,7 +174,7 @@ int zoran_status(struct zoran *zr)
 	default:
 		pci_info(zr->pci_dev, "ZR36057_VFESPFR unk format");
 	}
-		
+*/		
 
 	v = btread(ZR36057_ICR);
 	pci_info(zr->pci_dev, "ZR36057_ICR %x\n", v);
@@ -184,7 +184,7 @@ int zoran_status(struct zoran *zr)
 		 pci_info(zr->pci_dev, "ZR36057_ICR ZR36057_ICR_JPEGRepIRQ\n");
 	if (v & ZR36057_ICR_IntPinEn)
 		 pci_info(zr->pci_dev, "ZR36057_ICR ZR36057_ICR_IntPinEn\n");
-
+/*
 	v = btread(ZR36057_VSSFGR);
 	pci_info(zr->pci_dev, "ZR36057_VSSFGR %x\n", v);
 	if (v & ZR36057_VSSFGR_SnapShot)
@@ -231,17 +231,17 @@ int zoran_status(struct zoran *zr)
 	pci_info(zr->pci_dev, "ZR36057_MCTCR %x\n", v);
 
 	v = btread(ZR36057_MCMPR);
-	pci_info(zr->pci_dev, "ZR36057_MCMPR %x\n", v);
+	pci_info(zr->pci_dev, "ZR36057_MCMPR %x\n", v);*/
 /*
 	v = btread(ZR36057_ISR);
 	pci_info(zr->pci_dev, "ZR36057_ISR %x\n", v);
 
 	v = btread(ZR36057_ICR);
 	pci_info(zr->pci_dev, "ZR36057_ICR %x\n", v);
-*/
+*//*
 	v = btread(ZR36057_I2CBR);
 	pci_info(zr->pci_dev, "ZR36057_I2CBR %x\n", v);
-
+*/
 	v = btread(ZR36057_JMC);
 	pci_info(zr->pci_dev, "ZR36057_JMC %x\n", v);
 	Still_LitEndian = v & 1;
@@ -275,7 +275,7 @@ int zoran_status(struct zoran *zr)
 		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: GO\n", v);
 		
 		
-
+/*
 	v = btread(ZR36057_JPC);
 	pci_info(zr->pci_dev, "ZR36057_JPC %x\n", v);
 
@@ -307,7 +307,7 @@ int zoran_status(struct zoran *zr)
 	pci_info(zr->pci_dev, "ZR36057_JCGI %x JPEGuestID=%x JPEGuestReg=%x\n", v,
 		(v & GENMASK(6, 4)),
 		(v & GENMASK(2, 0)));
-
+*/
 	v = btread(ZR36057_STR);
 	pci_info(zr->pci_dev, "ZR36057_STR %x\n", v);
 	if (Still_LitEndian) {
@@ -326,8 +326,6 @@ int zoran_status(struct zoran *zr)
 	else
 		pci_info(zr->pci_dev, "ZR36057_STR not availlable R=%d G=%d B=%d\n", r, g, b);
 		
-
-
 	for (i = 0; i < BUZ_NUM_STAT_COM; i++)
 		pci_info(zr->pci_dev, "STAT COM %d %x buf=%x\n", i, zr->stat_com[i], zr->inuse[i]);
 	return 0;
@@ -1536,8 +1534,10 @@ static int zoran_s_fmt_vid_out(struct file *file, void *__fh,
 		fmt->fmt.pix.width, fmt->fmt.pix.height,
 			fmt->fmt.pix.pixelformat,
 			(char *)&printformat);
-	if (fmt->fmt.pix.pixelformat != V4L2_PIX_FMT_MJPEG)
+	if (fmt->fmt.pix.pixelformat != V4L2_PIX_FMT_MJPEG) {
+		pci_err(zr->pci_dev, "%s output support only V4L2_PIX_FMT_MJPEG %d\n", __func__, V4L2_PIX_FMT_MJPEG);
 		return -EINVAL;
+	}
 
 #ifdef ZORAN_OLD
 	if (fh->buffers.allocated) {
@@ -2084,8 +2084,10 @@ static int zoran_enum_input(struct file *file, void *__fh,
 	struct zoran *zr = video_drvdata(file);
 
 	pci_info(zr->pci_dev, "%s index=%d/%d\n", __func__, inp->index, zr->card.inputs);
-	if (inp->index >= zr->card.inputs)
+	if (inp->index >= zr->card.inputs) {
+		pci_err(zr->pci_dev, "%s input out of range %d >= %d\n", __func__, inp->index, zr->card.inputs);
 		return -EINVAL;
+	}
 
 	strscpy(inp->name, zr->card.input[inp->index].name, sizeof(inp->name));
 	inp->type = V4L2_INPUT_TYPE_CAMERA;
@@ -2128,8 +2130,10 @@ static int zoran_enum_output(struct file *file, void *__fh,
 	struct zoran *zr = video_drvdata(file);
 
 	pci_info(zr->pci_dev, "%s index=%d\n", __func__, outp->index);
-	if (outp->index != 0)
+	if (outp->index != 0) {
+		pci_err(zr->pci_dev, "%s output out of range\n", __func__);
 		return -EINVAL;
+	}
 
 #ifdef COMPLIANCE
 	return 0;
@@ -2145,7 +2149,9 @@ static int zoran_enum_output(struct file *file, void *__fh,
 }
 static int zoran_g_output(struct file *file, void *__fh, unsigned int *output)
 {
-	pr_info("%s\n", __func__);
+	struct zoran *zr = video_drvdata(file);
+
+	pci_info(zr->pci_dev, "%s\n", __func__);
 #ifdef COMPLIANCE
 	return -EINVAL;
 #endif
@@ -2156,9 +2162,13 @@ static int zoran_g_output(struct file *file, void *__fh, unsigned int *output)
 
 static int zoran_s_output(struct file *file, void *__fh, unsigned int output)
 {
-	pr_info("%s\n", __func__);
-	if (output != 0)
+	struct zoran *zr = video_drvdata(file);
+
+	pci_info(zr->pci_dev, "%s\n", __func__);
+	if (output != 0) {
+		pci_err(zr->pci_dev, "%s\n", __func__);
 		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -2168,13 +2178,10 @@ static int zoran_g_selection(struct file *file, void *__fh, struct v4l2_selectio
 	struct zoran_fh *fh = __fh;
 	struct zoran *zr = video_drvdata(file);
 
-	pr_info("%s\n", __func__);
+	pci_info(zr->pci_dev, "%s\n", __func__);
 	if (sel->type != V4L2_BUF_TYPE_VIDEO_OUTPUT &&
-	    sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		return -EINVAL;
-
-	if (!zr) {
-		pr_err("ERROR: %s no zoran\n", __func__);
+	    sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		pci_err(zr->pci_dev, "%s invalid combinaison\n", __func__);
 		return -EINVAL;
 	}
 
@@ -2203,6 +2210,7 @@ static int zoran_g_selection(struct file *file, void *__fh, struct v4l2_selectio
 		sel->r.height = BUZ_MAX_HEIGHT;
 		break;
 	default:
+		pci_err(zr->pci_dev, "%s Invalid target\n", __func__);
 		return -EINVAL;
 	}
 	return 0;
@@ -2215,7 +2223,7 @@ static int zoran_s_selection(struct file *file, void *__fh, struct v4l2_selectio
 	struct zoran_jpg_settings settings;
 	int res;
 
-	pr_info("%s\n", __func__);
+	pci_info(zr->pci_dev, "%s\n", __func__);
 	if (sel->type != V4L2_BUF_TYPE_VIDEO_OUTPUT &&
 	    sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
@@ -2654,6 +2662,7 @@ static const struct v4l2_file_operations zoran_fops = {
        .open		= v4l2_fh_open,
        .release		= vb2_fop_release,
        .read		= vb2_fop_read,
+       .write		= vb2_fop_write,
        .mmap		= vb2_fop_mmap,
        .poll		= vb2_fop_poll,
 #endif
@@ -2707,6 +2716,9 @@ static int zr_vout_vb2_queue_setup(struct vb2_queue *vq,
 	}
 	*nplanes = 1;
 	sizes[0] = size;
+
+	zr->buf_in_reserve = 0;
+
 	return 0;
 }
 
@@ -2716,10 +2728,15 @@ static void zr_vout_vb2_queue(struct vb2_buffer *vb)
 	struct zr_vout_buffer *voutbuf = vb2_to_zr_vout_buffer(vb);
 	unsigned long flags;
 
-	pci_info(zr->pci_dev, "%s\n", __func__);
+	pci_info(zr->pci_dev, "%s %d\n", __func__, zr->running);
 	spin_lock_irqsave(&zr->queued_bufs_lock, flags);
 	list_add_tail(&voutbuf->queue, &zr->queued_bufs);
+	zr->buf_in_reserve++;
 	spin_unlock_irqrestore(&zr->queued_bufs_lock, flags);
+	if (zr->running == ZORAN_MAP_MODE_JPG_REC)
+		zoran_feed_stat_com(zr);
+	else
+		pci_info(zr->pci_dev, "Not feeding\n");
 }
 
 static int zr_vout_vb2_prepare(struct vb2_buffer *vb)
@@ -2737,7 +2754,6 @@ static int zr_vout_vb2_prepare(struct vb2_buffer *vb)
 }
 
 static unsigned int seq;
-static int zr_in_use;
 
 int zr_set_jpgbuf(struct zoran *zr)
 {
@@ -2760,7 +2776,7 @@ int zr_set_buf(struct zoran *zr)
 	u8 *vaddr;
 	int i;
 
-	if (zr_in_use < 1) {
+	if (zr->running == ZORAN_MAP_MODE_NONE) {
 		pr_info("%s not init\n", __func__);
 		return 0;
 	}
@@ -2851,24 +2867,32 @@ static int zr_vout_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 		zr->inuse[j] = 0;
 	}
 
+	pci_info(zr->pci_dev, "%s MAPMODE is %s\n", __func__, map_mode(zr->map_mode));
 	if (zr->map_mode != ZORAN_MAP_MODE_RAW) {
-/*		zr36057_restart(zr);
-		zoran_init_hardware(zr);*/
+		pci_info(zr->pci_dev, "START JPG\n");
+		zr36057_restart(zr);
+		zoran_init_hardware(zr);
 /*	zr36057_restart(zr);*/
-		zr36057_enable_jpg(zr, BUZ_MODE_MOTION_COMPRESS);
+		if (zr->map_mode == ZORAN_MAP_MODE_JPG_REC)
+			zr36057_enable_jpg(zr, BUZ_MODE_MOTION_DECOMPRESS);
+		else
+			zr36057_enable_jpg(zr, BUZ_MODE_MOTION_COMPRESS);
 		zoran_feed_stat_com(zr);
 		jpeg_start(zr);
+		btor(ZR36057_ICR_IntPinEn, ZR36057_ICR);
+		zr->running = zr->map_mode;
 		return 0;
 	}
-	pci_info(zr->pci_dev, "%s MAPMODE is %s\n", __func__, map_mode(zr->map_mode));
-/*	zr36057_restart(zr);*/
+	pci_info(zr->pci_dev, "START RAW\n");
+	zr36057_restart(zr);
 	zoran_init_hardware(zr);
 
 /*	zoran_set_norm(zr, zr->norm);*/
 
+	zr36057_enable_jpg(zr, BUZ_MODE_IDLE);
 	zr36057_set_memgrab(zr, 1);
 	btor(ZR36057_ICR_IntPinEn, ZR36057_ICR);
-	zr_in_use = 1;
+	zr->running = zr->map_mode;
 	zoran_status(zr);
 	return 0;
 }
@@ -2880,13 +2904,14 @@ static void zr_vout_vb2_stop_streaming(struct vb2_queue *vq)
 	unsigned long flags;
 	int j;
 
-	zr_in_use = 0;
-	pr_info("%s\n", __func__);
+	zr->running = ZORAN_MAP_MODE_NONE;
+	pci_info(zr->pci_dev, "%s\n", __func__);
 
 	btand(~ZR36057_ICR_IntPinEn, ZR36057_ICR);
-	if (zr->map_mode != ZORAN_MAP_MODE_RAW)
+	if (zr->map_mode != ZORAN_MAP_MODE_RAW) {
 		zr36057_enable_jpg(zr, BUZ_MODE_IDLE);
-	else {
+		zr36057_set_memgrab(zr, 0);
+	} else {
 		zr36057_set_memgrab(zr, 0);
 	}
 
@@ -2901,11 +2926,13 @@ static void zr_vout_vb2_stop_streaming(struct vb2_queue *vq)
 
 
 	for (j = 0; j < BUZ_NUM_STAT_COM; j++) {
+		zr->stat_com[j] = cpu_to_le32(1);
 		if (!zr->inuse[j])
 			continue;
 		buf = zr->inuse[j];
 		pci_info(zr->pci_dev, "%s clean %d %px\n", __func__, j, buf);
 		vb2_buffer_done(&buf->vbuf.vb2_buf, VB2_BUF_STATE_ERROR);
+		zr->inuse[j] = NULL;
 	}
 
 	spin_lock_irqsave(&zr->queued_bufs_lock, flags);
@@ -2913,8 +2940,12 @@ static void zr_vout_vb2_stop_streaming(struct vb2_queue *vq)
 		buf = list_entry(zr->queued_bufs.next, struct zr_vout_buffer, queue);
 		list_del(&buf->queue);
 		vb2_buffer_done(&buf->vbuf.vb2_buf, VB2_BUF_STATE_ERROR);
+		zr->buf_in_reserve--;
 	}
 	spin_unlock_irqrestore(&zr->queued_bufs_lock, flags);
+	if (zr->buf_in_reserve)
+		pci_err(zr->pci_dev, "Buffer remaining %d\n", zr->buf_in_reserve);
+	zr->map_mode = ZORAN_MAP_MODE_RAW;
 }
 
 const struct vb2_ops zr_video_qops = {
@@ -2934,7 +2965,7 @@ int zoran_queue_init(struct zoran *zr, struct vb2_queue *vq)
 	pr_info("%s %px %px\n", __func__, zr, vq);
 	vq->dev = &zr->pci_dev->dev;
 	vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	vq->io_modes = VB2_USERPTR | VB2_DMABUF | VB2_MMAP | VB2_READ;
+	vq->io_modes = VB2_USERPTR | VB2_DMABUF | VB2_MMAP | VB2_READ | VB2_WRITE;
 	vq->drv_priv = zr;
 	vq->buf_struct_size = sizeof(struct zr_vout_buffer);
 	vq->ops = &zr_video_qops;

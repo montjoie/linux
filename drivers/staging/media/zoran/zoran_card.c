@@ -641,6 +641,7 @@ static int zr_dbgfs_read(struct seq_file *seq, void *v)
 	seq_printf(seq, "JPEG_out %d:\n", zr->JPEG_out);
 	seq_printf(seq, "JPEG_0: %d\n", zr->JPEG_0);
 	seq_printf(seq, "JPEG_1: %d\n", zr->JPEG_1);
+	seq_printf(seq, "Ghost interupts: %d\n", zr->ghost_int);
 
 	u = btread(ZR36057_VFEHCR);
 	seq_printf(seq, "ZR36057_VFEHCR: %x\n", u);
@@ -1091,8 +1092,6 @@ static int zr36057_init(struct zoran *zr)
 		err = -ENOMEM;
 		goto exit_free;
 	}
-	/*zr->p_sc = dma_map_single(&zr->pci_dev->dev, zr->stat_com, 4 * sizeof(u32), DMA_TO_DEVICE);*/
-/*	zr->stat_com = kzalloc(BUZ_NUM_STAT_COM * 4, GFP_KERNEL);*/
 	zr->stat_com = dma_alloc_coherent(&zr->pci_dev->dev, BUZ_NUM_STAT_COM * sizeof(u32), &zr->p_sc, GFP_KERNEL);
 	if (!zr->stat_com) {
 		err = -ENOMEM;
@@ -1377,7 +1376,7 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		goto zr_unreg;
 	}
 
-	result = request_irq(zr->pci_dev->irq, zoran_irq,
+	result = request_irq(zr->pci_dev->irq, zoran_irqng,
 			     IRQF_SHARED, ZR_DEVNAME(zr), zr);
 	if (result < 0) {
 		if (result == -EINVAL) {
@@ -1483,6 +1482,7 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	if (zr36057_init(zr) < 0)
 		goto zr_detach_vfe;
 
+	zr->map_mode = ZORAN_MAP_MODE_RAW;
 	zoran_proc_init(zr);
 
 	pr_info("%s end\n", __func__);
