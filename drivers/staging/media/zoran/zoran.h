@@ -443,6 +443,8 @@ struct zoran {
 	int JPEG_max_missed;
 	int JPEG_min_missed;
 	unsigned int ghost_int;
+	unsigned int prepared;
+	unsigned int queued;
 
 	u32 last_isr;
 	unsigned long frame_num;
@@ -460,6 +462,10 @@ struct zoran {
 	dma_addr_t p_scb;
 	int running;
 	int buf_in_reserve;
+	void *frameo;
+	void *framen;
+	struct debugfs_blob_wrapper blobo;
+	struct debugfs_blob_wrapper blobn;
 };
 
 static inline struct zoran *to_zoran(struct v4l2_device *v4l2_dev)

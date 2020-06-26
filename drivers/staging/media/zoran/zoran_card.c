@@ -642,6 +642,8 @@ static int zr_dbgfs_read(struct seq_file *seq, void *v)
 	seq_printf(seq, "JPEG_0: %d\n", zr->JPEG_0);
 	seq_printf(seq, "JPEG_1: %d\n", zr->JPEG_1);
 	seq_printf(seq, "Ghost interupts: %d\n", zr->ghost_int);
+	seq_printf(seq, "Prepared: %d\n", zr->prepared);
+	seq_printf(seq, "Queued: %d\n", zr->queued);
 
 	u = btread(ZR36057_VFEHCR);
 	seq_printf(seq, "ZR36057_VFEHCR: %x\n", u);
@@ -670,7 +672,7 @@ static int zr_dbgfs_read(struct seq_file *seq, void *v)
 	u = btread(ZR36057_MCSAR);
 	seq_printf(seq, "ZR36057_MCSAR: %x\n", u);
 	u = btread(ZR36057_MCTCR);
-	seq_printf(seq, "ZR36057_MCTCR: %x\n", u);
+	seq_printf(seq, "ZR36057_MCTCR: %x empty=%x flush=%x\n", u, (u & ZR36057_MCTCR_CodTime), (u & ZR36057_MCTCR_CFlush));
 	u = btread(ZR36057_MCMPR);
 	seq_printf(seq, "ZR36057_MCMPR: %x\n", u);
 	u = btread(ZR36057_ISR);
@@ -1161,6 +1163,17 @@ static int zr36057_init(struct zoran *zr)
 	zr->dbgfs_stats = debugfs_create_file("stats", 0444, zr->dbgfs_dir, zr,
 					      &zr_debugfs_fops);
 
+	zr->frameo = kzalloc(1000 * 1000, GFP_KERNEL);
+	if (!zr->frameo)
+		goto exit_free;
+	zr->framen = kzalloc(1000 * 1000, GFP_KERNEL);
+	if (!zr->framen)
+		goto exit_free;
+	debugfs_create_blob("blobo", 0444, zr->dbgfs_dir, &zr->blobo);
+	debugfs_create_blob("blobn", 0444, zr->dbgfs_dir, &zr->blobn);
+	zr->blobo.size = 0;
+	zr->blobn.size = 0;
+
 	zr->zoran_proc = NULL;
 	zr->initialized = 1;
 	pr_info("%s ========================== end\n", __func__);
@@ -1182,6 +1195,9 @@ static void zoran_remove(struct pci_dev *pdev)
 		goto exit_free;
 
 	debugfs_remove_recursive(zr->dbgfs_dir);
+
+	kfree(zr->frameo);
+	kfree(zr->framen);
 
 	/* unregister videocodec bus */
 	if (zr->codec) {

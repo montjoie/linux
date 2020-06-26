@@ -941,6 +941,7 @@ void zoran_feed_stat_com(struct zoran *zr)
 	struct vb2_v4l2_buffer *vbuf;
 	dma_addr_t phys_addr = 0;
 	unsigned int flags;
+	unsigned long payload;
 
 	max_stat_com =
 	    (zr->jpg_settings.TmpDcm ==
@@ -966,6 +967,9 @@ void zoran_feed_stat_com(struct zoran *zr)
 		vbuf = &buf->vbuf;
 		vbuf->vb2_buf.state = VB2_BUF_STATE_ACTIVE;
 		phys_addr = vb2_dma_contig_plane_dma_addr(&vbuf->vb2_buf, 0);
+		payload = vb2_get_plane_payload(&vbuf->vb2_buf, 0);
+		if (payload == 0)
+			payload = zr->buffer_size;
 #endif
 		if (zr->jpg_settings.TmpDcm == 1) {
 			/* fill 1 stat_com entry */
@@ -978,7 +982,7 @@ void zoran_feed_stat_com(struct zoran *zr)
 			zr->stat_com[i] = cpu_to_le32(zr->jpg_buffers.buffer[frame].jpg.frag_tab_bus);
 #else
 			zr->stat_comb[i * 2] = cpu_to_le32(phys_addr);
-			zr->stat_comb[i * 2 + 1] = cpu_to_le32((zr->buffer_size >> 1)| 1);
+			zr->stat_comb[i * 2 + 1] = cpu_to_le32((payload >> 1)| 1);
 			zr->inuse[i] = buf;
 			zr->stat_com[i] = zr->p_scb + i * 2 * 4;
 			pr_info("%s stat_com %d point to scb %px+%d %px buf=%px remains=%d\n",
@@ -999,7 +1003,7 @@ void zoran_feed_stat_com(struct zoran *zr)
 			zr->stat_com[i + 1] = zr->p_scb + i * 2 * 4;
 
 			zr->stat_comb[i * 2] = cpu_to_le32(phys_addr);
-			zr->stat_comb[i * 2 + 1] = cpu_to_le32((zr->buffer_size >> 1)| 1);
+			zr->stat_comb[i * 2 + 1] = cpu_to_le32((payload >> 1)| 1);
 
 			zr->inuse[i] = buf;
 			zr->inuse[i + 1] = 0;

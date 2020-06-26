@@ -246,33 +246,33 @@ int zoran_status(struct zoran *zr)
 	pci_info(zr->pci_dev, "ZR36057_JMC %x\n", v);
 	Still_LitEndian = v & 1;
 	if (Still_LitEndian)
-		pci_info(zr->pci_dev, "ZR36057_JMC Little Endian\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC Little Endian %x\n", v);
 	else
-		pci_info(zr->pci_dev, "ZR36057_JMC Big Endian\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC Big Endian %x\n", v);
 	if (v & BIT(31))
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG Mode\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC JPEG Mode %x\n", v);
 	else
-		pci_info(zr->pci_dev, "ZR36057_JMC MPEG Mode\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC MPEG Mode%x \n", v);
 	w = (v & GENMASK(30, 29)) >> 29;
 	switch(w) {
 	case 0:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Still image Decompression\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Still image Decompression %x\n", v);
 		break;
 	case 1:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Still image Compression\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Still image Compression %x\n", v);
 		break;
 	case 2:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Motion video Decompression\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Motion video Decompression %x\n", v);
 		break;
 	case 3:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Motion video Compression\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Motion video Compression %x\n", v);
 		break;
 	default:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: bad mode\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: bad mode %x\n", v);
 		break;
 	}
 	if (v & BIT(5))
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: GO\n", v);
+		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: GO %x\n", v);
 		
 		
 /*
@@ -2707,6 +2707,11 @@ static int zr_vout_vb2_queue_setup(struct vb2_queue *vq,
 	struct zoran *zr = vb2_get_drv_priv(vq);
 	unsigned int size = PAGE_ALIGN(zr->buffer_size);
 
+	if (!size) {
+		zr->buffer_size = 500000;
+		size = PAGE_ALIGN(zr->buffer_size);
+	}
+
 	pr_info("%s nplanes=%d size=%u nbuffers=%d\n", __func__, *nplanes, size, *nbuffers);
 
 	/*if (*nplanes)
@@ -2722,11 +2727,66 @@ static int zr_vout_vb2_queue_setup(struct vb2_queue *vq,
 	return 0;
 }
 
+static unsigned int zr_jpgclean(struct vb2_buffer *vb)
+{
+	struct zoran *zr = vb2_get_drv_priv(vb->vb2_queue);
+	unsigned long i, t;
+	u8 *j;
+	int size;
+	unsigned long payload;
+	unsigned long last;
+
+	payload = vb2_get_plane_payload(vb, 0);
+	pr_info("Check buffer size=%d\n", payload);
+	payload = zr->buffer_size;
+
+	j = vb2_plane_vaddr(vb, 0);
+	if (j[0] != 0xff || j[1] != 0xd8)
+		return 0;
+
+	if (!zr->blobo.size) {
+		memcpy(zr->frameo, j, zr->buffer_size);
+		zr->blobo.size = zr->buffer_size;
+		zr->blobo.data = zr->frameo;
+	}
+
+	t = 2;
+	i = 2;
+	while (i < payload) {
+		if (j[i] == 0xff && (j[i + 1] == 0xe0 || j[i + 1] == 0xfe)) {
+			size = j[i + 2] * 256 + j[i + 3] + 2;
+			i += size;
+/*			pr_info("SKIP jpeg at %d size=%d t=%d\n", i, size, t);*/
+			continue;
+		}
+		if (j[i] == 0xff && j[i + 1] == 0xd9)
+			last = t + 1;
+		if (i != t)
+			j[t] = j[i];
+		i++;
+		t++;
+	}
+	if (payload != t) {
+		pr_info("%s clean jpeg from %d to %d %d\n", __func__, payload, t, last);
+		vb2_set_plane_payload(vb, 0, last);
+	}
+	if (!zr->blobn.size) {
+		memcpy(zr->framen, j, zr->buffer_size);
+		zr->blobn.size = zr->buffer_size;
+		zr->blobn.data = zr->framen;
+	}
+
+	return t;
+}
 static void zr_vout_vb2_queue(struct vb2_buffer *vb)
 {
 	struct zoran *zr = vb2_get_drv_priv(vb->vb2_queue);
 	struct zr_vout_buffer *voutbuf = vb2_to_zr_vout_buffer(vb);
 	unsigned long flags;
+	int ret;
+
+	if (zr->map_mode == ZORAN_MAP_MODE_JPG_REC)
+		ret = zr_jpgclean(vb);
 
 	pci_info(zr->pci_dev, "%s %d\n", __func__, zr->running);
 	spin_lock_irqsave(&zr->queued_bufs_lock, flags);
@@ -2737,6 +2797,7 @@ static void zr_vout_vb2_queue(struct vb2_buffer *vb)
 		zoran_feed_stat_com(zr);
 	else
 		pci_info(zr->pci_dev, "Not feeding\n");
+	zr->queued++;
 }
 
 static int zr_vout_vb2_prepare(struct vb2_buffer *vb)
@@ -2749,10 +2810,12 @@ static int zr_vout_vb2_prepare(struct vb2_buffer *vb)
 		pr_warn("BAD SIZE\n");
 
 	/* poison */
-/*	memset(vb2_plane_vaddr(vb, 0), 0x66, zr->buffer_size);*/
+	/*memset(vb2_plane_vaddr(vb, 0), 0x66, zr->buffer_size);*/
+	zr->prepared++;
 	return 0;
 }
 
+/* TODO seq */
 static unsigned int seq;
 
 int zr_set_jpgbuf(struct zoran *zr)
@@ -2773,8 +2836,6 @@ int zr_set_buf(struct zoran *zr)
 	dma_addr_t phys_addr;
 	unsigned long flags;
 	u32 reg;
-	u8 *vaddr;
-	int i;
 
 	if (zr->running == ZORAN_MAP_MODE_NONE) {
 		pr_info("%s not init\n", __func__);
@@ -2786,17 +2847,6 @@ int zr_set_buf(struct zoran *zr)
 		buf->vbuf.vb2_buf.timestamp = ktime_get_ns();
 		buf->vbuf.sequence = seq++;
 		vbuf = &buf->vbuf;
-		/*vaddr = vb2_plane_vaddr(&vbuf->vb2_buf, 0);
-		print_hex_dump(KERN_CONT, "", DUMP_PREFIX_OFFSET, 16, 1, vaddr, 32, false);
-		for (i = 0; i < zr->buffer_size; i++) {
-			if (vaddr[i] != 0x66) {
-				tcount ++;
-				touched = true;
-				vaddr[i] = 0xFF;
-			}
-		}
-		if (touched)
-			pr_info("%s buffer touched %d\n", __func__, tcount);*/
 
 		/* TODO field*/
 		buf->vbuf.field = V4L2_FIELD_INTERLACED;
@@ -2859,7 +2909,6 @@ static int zr_vout_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct zoran *zr = vq->drv_priv;
 	int j;
-	u32 v;
 
 	pr_info("%s\n", __func__);
 	for (j = 0; j < BUZ_NUM_STAT_COM; j++) {
@@ -2964,6 +3013,7 @@ int zoran_queue_init(struct zoran *zr, struct vb2_queue *vq)
 
 	pr_info("%s %px %px\n", __func__, zr, vq);
 	vq->dev = &zr->pci_dev->dev;
+/*	vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE | V4L2_BUF_TYPE_VIDEO_OUTPUT;*/
 	vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	vq->io_modes = VB2_USERPTR | VB2_DMABUF | VB2_MMAP | VB2_READ | VB2_WRITE;
 	vq->drv_priv = zr;
