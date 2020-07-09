@@ -35,7 +35,6 @@
 #include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-dma-contig.h>
 
-/*#define ZORAN_OLD*/
 /*#define COMPLIANCE*/
 
 #define ZR_NORM_PAL 0
@@ -157,14 +156,6 @@ static const char *codec_name(int c)
 	return "UNKNOW CODE";
 }
 
-#ifdef ZORAN_OLD
-enum zoran_buffer_state {
-	BUZ_STATE_USER,		/* buffer is owned by application */
-	BUZ_STATE_PEND,		/* buffer is queued in pend[] ready to feed to I/O */
-	BUZ_STATE_DMA,		/* buffer is queued in dma[] for I/O */
-	BUZ_STATE_DONE		/* buffer is ready to return to application */
-};
-#endif
 enum zoran_map_mode {
 	ZORAN_MAP_MODE_NONE,
 	ZORAN_MAP_MODE_RAW,
@@ -233,49 +224,6 @@ struct zoran_jpg_settings {
 	struct v4l2_jpegcompression jpg_comp;	/* JPEG-specific capture settings */
 };
 
-#ifdef ZORAN_OLD
-struct zoran_fh;
-#endif
-
-#ifdef ZORAN_OLD
-struct zoran_mapping {
-	struct zoran_fh *fh;
-	atomic_t count;
-};
-
-struct zoran_buffer {
-	struct zoran_mapping *map;
-	enum zoran_buffer_state state;	/* state: unused/pending/dma/done */
-	struct zoran_sync bs;		/* DONE: info to return to application */
-	union {
-		struct {
-			__le32 *frag_tab;	/* addresses of frag table */
-			u32 frag_tab_bus;	/* same value cached to save time in ISR */
-		} jpg;
-		struct {
-			char *fbuffer;		/* virtual address of frame buffer */
-			unsigned long fbuffer_phys;/* physical address of frame buffer */
-			unsigned long fbuffer_bus;/* bus address of frame buffer */
-		} v4l;
-	};
-};
-
-enum zoran_lock_activity {
-	ZORAN_FREE,		/* free for use */
-	ZORAN_ACTIVE,		/* active but unlocked */
-	ZORAN_LOCKED,		/* locked */
-};
-
-/* buffer collections */
-struct zoran_buffer_col {
-	enum zoran_lock_activity active;	/* feature currently in use? */
-	unsigned int num_buffers;
-	struct zoran_buffer buffer[MAX_FRAME];	/* buffers */
-	u8 allocated;		/* Flag if buffers are allocated */
-	u8 need_contiguous;	/* Flag if contiguous buffers are needed */
-	/* only applies to jpg buffers, raw buffers are always contiguous */
-};
-#endif
 
 struct zoran;
 
@@ -283,12 +231,6 @@ struct zoran;
 struct zoran_fh {
 	struct v4l2_fh fh;
 	struct zoran *zr;
-
-#ifdef ZORAN_OLD
-	enum zoran_map_mode map_mode;		/* Flag which bufferset will map by next mmap() */
-
-	struct zoran_buffer_col buffers;	/* buffers' info */
-#endif
 };
 
 struct card_info {
@@ -346,9 +288,6 @@ struct zoran {
 	struct mutex lock;	/* file ops serialize lock */
 
 	u8 initialized;		/* flag if zoran has been correctly initialized */
-#ifdef ZORAN_OLD
-	int user;		/* number of current users */
-#endif
 	struct card_info card;
 	struct tvnorm *timing;
 
@@ -380,14 +319,6 @@ struct zoran {
 	unsigned long v4l_grab_seq;	/* Number of frames grabbed */
 	struct zoran_v4l_settings v4l_settings;	/* structure with a lot of things to play with */
 
-#ifdef ZORAN_OLD
-	/* V4L grab queue of frames pending */
-	unsigned long v4l_pend_head;
-	unsigned long v4l_pend_tail;
-	unsigned long v4l_sync_tail;
-	int v4l_pend[V4L_MAX_FRAME];
-	struct zoran_buffer_col v4l_buffers;	/* V4L buffers' info */
-#endif
 	/* Buz MJPEG parameters */
 	enum zoran_codec_mode codec_mode;	/* status of codec */
 	struct zoran_jpg_settings jpg_settings;	/* structure with a lot of things to play with */
@@ -411,11 +342,6 @@ struct zoran {
 
 	/* (value & BUZ_MASK_FRAME) corresponds to index in pend[] queue */
 	int jpg_pend[BUZ_MAX_FRAME];
-
-#ifdef ZORAN_OLD
-	/* array indexed by frame number */
-	struct zoran_buffer_col jpg_buffers;	/* MJPEG buffers' info */
-#endif
 
 	/* Additional stuff for testing */
 #ifdef CONFIG_PROC_FS
@@ -559,6 +485,4 @@ static void btprint(u32 dat, u32 adr)
 
 #endif
 
-#ifndef ZORAN_OLD
 int zoran_queue_init(struct zoran *zr, struct vb2_queue *vq);
-#endif
