@@ -73,9 +73,7 @@ static u8 zr36016_read(struct zr36016 *ptr, u16 reg)
 	if (ptr->codec->master_data->readreg)
 		value = (ptr->codec->master_data->readreg(ptr->codec, reg)) & 0xFF;
 	else
-		dprintk(1,
-			KERN_ERR "%s: invalid I/O setup, nothing read!\n",
-			ptr->name);
+		pr_err("%s: invalid I/O setup, nothing read!\n", ptr->name);
 
 	dprintk(4, "%s: reading from 0x%04x: %02x\n", ptr->name, reg, value);
 
@@ -90,10 +88,7 @@ static void zr36016_write(struct zr36016 *ptr, u16 reg, u8 value)
 	if (ptr->codec->master_data->writereg)
 		ptr->codec->master_data->writereg(ptr->codec, reg, value);
 	else
-		dprintk(1,
-			KERN_ERR
-			"%s: invalid I/O setup, nothing written!\n",
-			ptr->name);
+		pr_err("%s: invalid I/O setup, nothing written!\n", ptr->name);
 }
 
 /* indirect read and write functions */
@@ -412,7 +407,7 @@ static int zr36016_setup(struct videocodec *codec)
 	//mem structure init
 	codec->data = ptr = kzalloc(sizeof(struct zr36016), GFP_KERNEL);
 	if (!ptr) {
-		dprintk(1, KERN_ERR "zr36016: Can't get enough memory!\n");
+		pr_err("zr36016: Can't get enough memory!\n");
 		return -ENOMEM;
 	}
 
