@@ -28,7 +28,6 @@
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
 
-#include <linux/proc_fs.h>
 #include <linux/i2c.h>
 #include <linux/i2c-algo-bit.h>
 #include <linux/videodev2.h>
@@ -48,7 +47,6 @@
 #include "zoran.h"
 #include "zoran_card.h"
 #include "zoran_device.h"
-#include "zoran_procfs.h"
 
 extern const struct zoran_format zoran_formats[];
 
@@ -998,7 +996,6 @@ static int zr36057_init(struct zoran *zr)
 		encoder_call(zr, video, s_routing, 2, 0, 0);
 	}
 
-	zr->zoran_proc = NULL;
 	zr->initialized = 1;
 	return 0;
 
@@ -1039,7 +1036,6 @@ static void zoran_remove(struct pci_dev *pdev)
 	free_irq(zr->pci_dev->irq, zr);
 	/* unmap and free memory */
 	kfree(zr->stat_com);
-	zoran_proc_cleanup(zr);
 	iounmap(zr->zr36057_mem);
 	pci_disable_device(zr->pci_dev);
 	video_unregister_device(zr->video_dev);
@@ -1307,8 +1303,6 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	if (zr36057_init(zr) < 0)
 		goto zr_detach_vfe;
-
-	zoran_proc_init(zr);
 
 	return 0;
 
