@@ -32,7 +32,6 @@
 #include <linux/sched/signal.h>
 
 #include <linux/interrupt.h>
-#include <linux/proc_fs.h>
 #include <linux/i2c.h>
 #include <linux/i2c-algo-bit.h>
 #include <linux/videodev2.h>
@@ -437,9 +436,6 @@ static void zr36057_set_vfe(struct zoran *zr, int video_width, int video_height,
 /* Enable/Disable uncompressed memory grabbing of the 36057 */
 void zr36057_set_memgrab(struct zoran *zr, int mode)
 {
-	u32 v;
-	int j;
-
 	pci_info(zr->pci_dev, "%s: mode=%d\n", __func__, mode);
 	if (mode) {
 		/* We only check SnapShot and not FrameGrab here.  SnapShot==1
@@ -480,7 +476,6 @@ void zr36057_set_memgrab(struct zoran *zr, int mode)
 
 int wait_grab_pending(struct zoran *zr)
 {
-	unsigned long flags;
 
 	pr_info("%s\n", __func__);
 	/* wait until all pending grabs are finished */
@@ -916,7 +911,7 @@ void zoran_feed_stat_com(struct zoran *zr)
 	struct zr_vout_buffer *buf;
 	struct vb2_v4l2_buffer *vbuf;
 	dma_addr_t phys_addr = 0;
-	unsigned int flags;
+	unsigned long flags;
 	unsigned long payload;
 
 	max_stat_com =
@@ -952,15 +947,15 @@ void zoran_feed_stat_com(struct zoran *zr)
 			zr->stat_comb[i * 2 + 1] = cpu_to_le32((payload >> 1)| 1);
 			zr->inuse[i] = buf;
 			zr->stat_com[i] = zr->p_scb + i * 2 * 4;
-			pr_info("%s stat_com %d point to scb %px+%d %px buf=%px remains=%d\n",
-				__func__, i, zr->p_scb, i * 2, zr->p_scb + i * 2 * 4, vbuf, zr->buf_in_reserve);
+/*			pr_info("%s stat_com %d point to scb %px+%d %px buf=%px remains=%d\n",
+				__func__, i, zr->p_scb, i * 2, zr->p_scb + i * 2 * 4, vbuf, zr->buf_in_reserve);*/
 		} else {
 			/* fill 2 stat_com entries */
 			i = ((zr->jpg_dma_head -
 			      zr->jpg_err_shift) & 1) * 2;
 			if (!(zr->stat_com[i] & cpu_to_le32(1)))
 				break;
-			pr_info("%s Feed stat_com %d x2 %px\n", __func__, i, buf);
+			/*pr_info("%s Feed stat_com %d x2 %px\n", __func__, i, buf);*/
 			zr->stat_com[i] = zr->p_scb + i * 2 * 4;
 			zr->stat_com[i + 1] = zr->p_scb + i * 2 * 4;
 

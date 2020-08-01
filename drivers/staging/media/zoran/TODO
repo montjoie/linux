@@ -16,12 +16,5 @@ How to test
 
 
 TODO
-- split patchs
 - use devm
 - made output work
-
-PATCHSET:
-- timeval patch
-- kzalloc stat com do devm_
-- virt_to_bus to dma coherent
-- big vb2 patch

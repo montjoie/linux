@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Zoran zr36057/zr36067 PCI controller driver, for the
  * Pinnacle/Miro DC10/DC10+/DC30/DC30+, Iomega Buz, Linux
@@ -58,18 +59,17 @@
 #include <media/v4l2-common.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
+#include <media/videobuf-core.h>
 #include "videocodec.h"
 
 #include <asm/byteorder.h>
-#include <asm/io.h>
+#include <linux/io.h>
 #include <linux/uaccess.h>
-#include <linux/proc_fs.h>
 
 #include <linux/mutex.h>
 #include "zoran.h"
 #include "zoran_device.h"
 #include "zoran_card.h"
-
 
 const struct zoran_format zoran_formats[] = {
 	{
@@ -143,7 +143,9 @@ const struct zoran_format zoran_formats[] = {
 		.colorspace = V4L2_COLORSPACE_SMPTE170M,
 		.depth = 0,
 		.flags = ZORAN_FORMAT_CAPTURE |
+#ifndef COMPLIANCE
 			 ZORAN_FORMAT_PLAYBACK |
+#endif
 			 ZORAN_FORMAT_COMPRESSED,
 	}
 };
@@ -152,7 +154,7 @@ int zoran_status(struct zoran *zr)
 {
 	u32 v;
 	int w, h, r, g, b;
-	int i, still;
+	int still;
 	int Still_LitEndian = 0;
 
 	pci_info(zr->pci_dev, "Codec %s\n", codec_name(zr->codec_mode));
@@ -296,10 +298,10 @@ int zoran_status(struct zoran *zr)
 	v = btread(ZR36057_JCBA);
 	pci_info(zr->pci_dev, "ZR36057_JCBA %x\n", v);
 	v = btread(ZR36057_JCFT);
-	pci_info(zr->pci_dev, "ZR36057_JCFT %x fifo=%d\n", v, v & GENMASK(7, 0));
+	pci_info(zr->pci_dev, "ZR36057_JCFT %x fifo=%ld\n", v, v & GENMASK(7, 0));
 
 	v = btread(ZR36057_JCGI);
-	pci_info(zr->pci_dev, "ZR36057_JCGI %x JPEGuestID=%x JPEGuestReg=%x\n", v,
+	pci_info(zr->pci_dev, "ZR36057_JCGI %x JPEGuestID=%lx JPEGuestReg=%lx\n", v,
 		(v & GENMASK(6, 4)),
 		(v & GENMASK(2, 0)));
 
@@ -321,8 +323,8 @@ int zoran_status(struct zoran *zr)
 	else
 		pci_info(zr->pci_dev, "ZR36057_STR not availlable R=%d G=%d B=%d\n", r, g, b);
 		
-	for (i = 0; i < BUZ_NUM_STAT_COM; i++)
-		pci_info(zr->pci_dev, "STAT COM %d %x buf=%x\n", i, zr->stat_com[i], zr->inuse[i]);
+/*	for (i = 0; i < BUZ_NUM_STAT_COM; i++)
+		pci_info(zr->pci_dev, "STAT COM %d %x buf=%x\n", i, zr->stat_com[i], zr->inuse[i]);*/
 	return 0;
 }
 
@@ -534,11 +536,12 @@ static int zoran_enum_fmt(struct zoran *zr, struct v4l2_fmtdesc *fmt, int flag)
 {
 	unsigned int num, i;
 
-	pci_info(zr->pci_dev, "%s: flag=%d\n", __func__, flag);
-#ifdef COMPLIANCE
-	if (flag == 8)
+	if (fmt->index >= ARRAY_SIZE(zoran_formats))
 		return -EINVAL;
-#endif
+	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+	pci_info(zr->pci_dev, "%s: flag=%d type=%d idx=%d\n", __func__, flag, fmt->type, fmt->index);
+
 	for (num = i = 0; i < NUM_FORMATS; i++) {
 		if (zoran_formats[i].flags & flag && num++ == fmt->index) {
 			pci_info(zr->pci_dev, "%s: Format %d %s\n", __func__, fmt->index, zoran_formats[i].name);
@@ -692,7 +695,7 @@ static int zoran_try_fmt_vid_cap(struct file *file, void *__fh,
 	int bpp;
 	int i;
 
-	pr_info("%s\n", __func__);
+	pr_info("%s pixfmt=%x\n", __func__, fmt->fmt.pix.pixelformat);
 	if (fmt->fmt.pix.pixelformat == V4L2_PIX_FMT_MJPEG)
 		return zoran_try_fmt_vid_out(file, __fh, fmt);
 
@@ -703,9 +706,13 @@ static int zoran_try_fmt_vid_cap(struct file *file, void *__fh,
 	if (i == NUM_FORMATS)
 		return -EINVAL;
 
+	fmt->fmt.pix.colorspace = zoran_formats[i].colorspace;
+	if (BUZ_MAX_HEIGHT < (fmt->fmt.pix.height * 2))
+		fmt->fmt.pix.field = V4L2_FIELD_INTERLACED;
+	else
+		fmt->fmt.pix.field = V4L2_FIELD_TOP;
 	bpp = DIV_ROUND_UP(zoran_formats[i].depth, 8);
-	v4l_bound_align_image(
-		&fmt->fmt.pix.width, BUZ_MIN_WIDTH, BUZ_MAX_WIDTH, bpp == 2 ? 1 : 2,
+	v4l_bound_align_image(&fmt->fmt.pix.width, BUZ_MIN_WIDTH, BUZ_MAX_WIDTH, bpp == 2 ? 1 : 2,
 		&fmt->fmt.pix.height, BUZ_MIN_HEIGHT, BUZ_MAX_HEIGHT, 0, 0);
 	return 0;
 }
@@ -713,7 +720,6 @@ static int zoran_try_fmt_vid_cap(struct file *file, void *__fh,
 static int zoran_s_fmt_vid_out(struct file *file, void *__fh,
 			       struct v4l2_format *fmt)
 {
-	struct zoran_fh *fh = __fh;
 	struct zoran *zr = video_drvdata(file);
 	__le32 printformat = __cpu_to_le32(fmt->fmt.pix.pixelformat);
 	struct zoran_jpg_settings settings;
@@ -728,6 +734,9 @@ static int zoran_s_fmt_vid_out(struct file *file, void *__fh,
 		pci_err(zr->pci_dev, "%s output support only V4L2_PIX_FMT_MJPEG %d\n", __func__, V4L2_PIX_FMT_MJPEG);
 		return -EINVAL;
 	}
+
+	if (!fmt->fmt.pix.height || fmt->fmt.pix.width)
+		return -EINVAL;
 
 	settings = zr->jpg_settings;
 
@@ -799,8 +808,6 @@ static int zoran_s_fmt_vid_cap(struct file *file, void *__fh,
 	struct zoran_fh *fh = __fh;
 	int i;
 	int res = 0;
-
-	pr_info("%s\n", __func__);
 
 	/* HACK */
 	zr->buffer_size = 8192;
@@ -983,10 +990,6 @@ static int zoran_enum_output(struct file *file, void *__fh,
 		return -EINVAL;
 	}
 
-#ifdef COMPLIANCE
-	return 0;
-#endif
-
 	outp->index = 0;
 	outp->type = V4L2_OUTPUT_TYPE_ANALOGVGAOVERLAY;
 	outp->std = V4L2_STD_NTSC | V4L2_STD_PAL | V4L2_STD_SECAM;
@@ -1000,9 +1003,6 @@ static int zoran_g_output(struct file *file, void *__fh, unsigned int *output)
 	struct zoran *zr = video_drvdata(file);
 
 	pci_info(zr->pci_dev, "%s\n", __func__);
-#ifdef COMPLIANCE
-	return -EINVAL;
-#endif
 	*output = 0;
 
 	return 0;
@@ -1023,7 +1023,6 @@ static int zoran_s_output(struct file *file, void *__fh, unsigned int output)
 /* cropping (sub-frame capture) */
 static int zoran_g_selection(struct file *file, void *__fh, struct v4l2_selection *sel)
 {
-	struct zoran_fh *fh = __fh;
 	struct zoran *zr = video_drvdata(file);
 
 	pci_info(zr->pci_dev, "%s\n", __func__);
@@ -1059,7 +1058,6 @@ static int zoran_g_selection(struct file *file, void *__fh, struct v4l2_selectio
 
 static int zoran_s_selection(struct file *file, void *__fh, struct v4l2_selection *sel)
 {
-	struct zoran_fh *fh = __fh;
 	struct zoran *zr = video_drvdata(file);
 	struct zoran_jpg_settings settings;
 	int res;
@@ -1076,6 +1074,10 @@ static int zoran_s_selection(struct file *file, void *__fh, struct v4l2_selectio
 		pr_err("%s: VIDIOC_S_SELECTION - subcapture only supported for compressed capture\n", ZR_DEVNAME(zr));
 		return -EINVAL;
 	}
+
+	if (!sel->r.width || !sel->r.height)
+		return -EINVAL;
+
 	settings = zr->jpg_settings;
 
 	/* move into a form that we understand */
@@ -1138,14 +1140,15 @@ static int zoran_s_jpegcomp(struct file *file, void *__fh,
 }
 
 static int zoran_g_parm(struct file *file, void *priv,
-			 struct v4l2_streamparm *sp)
+			 struct v4l2_streamparm *parm)
 {
-	struct zoran *zr = video_drvdata(file);
-	struct v4l2_captureparm *cp = &sp->parm.capture;
+	struct v4l2_captureparm *cp = &parm->parm.capture;
 
-	cp->capability = V4L2_CAP_TIMEPERFRAME;
+	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
 
-	cp->readbuffers = 2;
+	/*cp->capability = V4L2_CAP_TIMEPERFRAME;*/
+/*	cp->readbuffers = 2;*/
 
 	return 0;
 }
@@ -1157,11 +1160,14 @@ static const struct v4l2_ioctl_ops zoran_ioctl_ops = {
 	.vidioc_enum_input		    = zoran_enum_input,
 	.vidioc_g_input			    = zoran_g_input,
 	.vidioc_s_input			    = zoran_s_input,
+#ifndef COMPLIANCE
 	.vidioc_enum_output		    = zoran_enum_output,
 	.vidioc_g_output		    = zoran_g_output,
 	.vidioc_s_output		    = zoran_s_output,
+#endif
+/*
 	.vidioc_g_fbuf			    = zoran_g_fbuf,
-	.vidioc_s_fbuf			    = zoran_s_fbuf,
+	.vidioc_s_fbuf			    = zoran_s_fbuf,*/
 	.vidioc_g_std			    = zoran_g_std,
 	.vidioc_s_std			    = zoran_s_std,
 	.vidioc_g_jpegcomp		    = zoran_g_jpegcomp,
@@ -1173,15 +1179,15 @@ static const struct v4l2_ioctl_ops zoran_ioctl_ops = {
 	.vidioc_expbuf                      = vb2_ioctl_expbuf,
 	.vidioc_streamon		    = vb2_ioctl_streamon,
 	.vidioc_streamoff		    = vb2_ioctl_streamoff,
-/*	.vidioc_g_parm			    = zoran_g_parm,*/
+	.vidioc_g_parm			    = zoran_g_parm,
 	.vidioc_enum_fmt_vid_cap            = zoran_enum_fmt_vid_cap,
-	.vidioc_enum_fmt_vid_out            = zoran_enum_fmt_vid_out,
+/*	.vidioc_enum_fmt_vid_out            = zoran_enum_fmt_vid_out,*/
 	.vidioc_g_fmt_vid_cap               = zoran_g_fmt_vid_cap,
-	.vidioc_g_fmt_vid_out               = zoran_g_fmt_vid_out,
+/*	.vidioc_g_fmt_vid_out               = zoran_g_fmt_vid_out,*/
 	.vidioc_s_fmt_vid_cap               = zoran_s_fmt_vid_cap,
-	.vidioc_s_fmt_vid_out               = zoran_s_fmt_vid_out,
+/*	.vidioc_s_fmt_vid_out               = zoran_s_fmt_vid_out,*/
 	.vidioc_try_fmt_vid_cap             = zoran_try_fmt_vid_cap,
-	.vidioc_try_fmt_vid_out             = zoran_try_fmt_vid_out,
+/*	.vidioc_try_fmt_vid_out             = zoran_try_fmt_vid_out,*/
 	.vidioc_subscribe_event             = v4l2_ctrl_subscribe_event,
 	.vidioc_unsubscribe_event           = v4l2_event_unsubscribe,
 };
@@ -1312,10 +1318,9 @@ static void zr_vout_vb2_queue(struct vb2_buffer *vb)
 	struct zoran *zr = vb2_get_drv_priv(vb->vb2_queue);
 	struct zr_vout_buffer *voutbuf = vb2_to_zr_vout_buffer(vb);
 	unsigned long flags;
-	int ret;
 
 	if (zr->map_mode == ZORAN_MAP_MODE_JPG_REC)
-		ret = zr_jpgclean(vb);
+		zr_jpgclean(vb);
 
 	pci_info(zr->pci_dev, "%s %d\n", __func__, zr->running);
 	spin_lock_irqsave(&zr->queued_bufs_lock, flags);
@@ -1347,7 +1352,7 @@ static int zr_vout_vb2_prepare(struct vb2_buffer *vb)
 /* TODO seq */
 static unsigned int seq;
 
-int zr_set_jpgbuf(struct zoran *zr)
+static int zr_set_jpgbuf(struct zoran *zr)
 {
 	int i;
 	pr_info("%s: queue_state=%ld/%ld/%ld/%ld\n",

@@ -1,9 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Zoran ZR36016 basic configuration functions
  *
  * Copyright (C) 2001 Wolfgang Scherr <scherr@net4you.at>
- *
- * $Id: zr36016.c,v 1.1.2.14 2003/08/20 19:46:55 rbultje Exp $
  *
  * ------------------------------------------------------------------------
  *
@@ -72,13 +71,9 @@ static u8 zr36016_read(struct zr36016 *ptr, u16 reg)
 
 	/* just in case something is wrong... */
 	if (ptr->codec->master_data->readreg)
-		value =
-		    (ptr->codec->master_data->
-		     readreg(ptr->codec, reg)) & 0xFF;
+		value = (ptr->codec->master_data->readreg(ptr->codec, reg)) & 0xFF;
 	else
-		dprintk(1,
-			KERN_ERR "%s: invalid I/O setup, nothing read!\n",
-			ptr->name);
+		pr_err("%s: invalid I/O setup, nothing read!\n", ptr->name);
 
 	dprintk(4, "%s: reading from 0x%04x: %02x\n", ptr->name, reg, value);
 
@@ -90,13 +85,10 @@ static void zr36016_write(struct zr36016 *ptr, u16 reg, u8 value)
 	dprintk(4, "%s: writing 0x%02x to 0x%04x\n", ptr->name, value, reg);
 
 	// just in case something is wrong...
-	if (ptr->codec->master_data->writereg) {
+	if (ptr->codec->master_data->writereg)
 		ptr->codec->master_data->writereg(ptr->codec, reg, value);
-	} else
-		dprintk(1,
-			KERN_ERR
-			"%s: invalid I/O setup, nothing written!\n",
-			ptr->name);
+	else
+		pr_err("%s: invalid I/O setup, nothing written!\n", ptr->name);
 }
 
 /* indirect read and write functions */

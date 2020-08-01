@@ -35,7 +35,7 @@
 #include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-dma-contig.h>
 
-/*#define COMPLIANCE*/
+#define COMPLIANCE
 
 #define ZR_NORM_PAL 0
 #define ZR_NORM_NTSC 1
@@ -344,11 +344,6 @@ struct zoran {
 	int jpg_pend[BUZ_MAX_FRAME];
 
 	/* Additional stuff for testing */
-#ifdef CONFIG_PROC_FS
-	struct proc_dir_entry *zoran_proc;
-#else
-	void *zoran_proc;
-#endif
 	int testing;
 	int jpeg_error;
 	int intr_counter_GIRQ1;
