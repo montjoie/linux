@@ -86,9 +86,7 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 		master->name, master->flags, master->magic);
 
 	if (!h) {
-		dprintk(1,
-			KERN_ERR
-			"videocodec_attach: no device available\n");
+		pr_err("videocodec_attach: no device available\n");
 		return NULL;
 	}
 
@@ -105,9 +103,7 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 			codec = kmemdup(h->codec, sizeof(struct videocodec),
 					GFP_KERNEL);
 			if (!codec) {
-				dprintk(1,
-					KERN_ERR
-					"videocodec_attach: no mem\n");
+				pr_err("videocodec_attach: no mem\n");
 				goto out_module_put;
 			}
 
@@ -120,12 +116,8 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 				dprintk(3, "videocodec_attach '%s'\n",
 					codec->name);
 				ptr = kzalloc(sizeof(struct attached_list), GFP_KERNEL);
-				if (!ptr) {
-					dprintk(1,
-						KERN_ERR
-						"videocodec_attach: no memory\n");
+				if (!ptr)
 					goto out_kfree;
-				}
 				ptr->codec = codec;
 
 				a = h->list;
@@ -177,8 +169,7 @@ int videocodec_detach(struct videocodec *codec)
 		codec->name, codec->type, codec->flags, codec->magic);
 
 	if (!h) {
-		dprintk(1,
-			KERN_ERR "videocodec_detach: no device left...\n");
+		pr_err("videocodec_detach: no device left...\n");
 		return -ENXIO;
 	}
 
@@ -194,10 +185,7 @@ int videocodec_detach(struct videocodec *codec)
 						a->codec->name);
 					a->codec->master_data = NULL;
 				} else {
-					dprintk(1,
-						KERN_ERR
-						"videocodec_detach: '%s'\n",
-						a->codec->name);
+					pr_err("videocodec_detach: '%s'\n", a->codec->name);
 					a->codec->master_data = NULL;
 				}
 				if (!prev) {
@@ -239,10 +227,8 @@ int videocodec_register(const struct videocodec *codec)
 		codec->name, codec->type, codec->flags, codec->magic);
 
 	ptr = kzalloc(sizeof(struct codec_list), GFP_KERNEL);
-	if (!ptr) {
-		pr_err("videocodec_register: no memory\n");
+	if (!ptr)
 		return -ENOMEM;
-	}
 	ptr->codec = codec;
 
 	if (!h) {
@@ -273,19 +259,14 @@ int videocodec_unregister(const struct videocodec *codec)
 		codec->name, codec->type, codec->flags, codec->magic);
 
 	if (!h) {
-		dprintk(1,
-			KERN_ERR
-			"videocodec_unregister: no device left...\n");
+		pr_err("videocodec_unregister: no device left...\n");
 		return -ENXIO;
 	}
 
 	while (h) {
 		if (codec == h->codec) {
 			if (h->attached) {
-				dprintk(1,
-					KERN_ERR
-					"videocodec: '%s' is used\n",
-					h->codec->name);
+				pr_err("videocodec: '%s' is used\n", h->codec->name);
 				return -EBUSY;
 			}
 			dprintk(3, "videocodec: unregister '%s' is ok.\n",
@@ -306,9 +287,7 @@ int videocodec_unregister(const struct videocodec *codec)
 		h = h->next;
 	}
 
-	dprintk(1,
-		KERN_ERR
-		"videocodec_unregister: given codec not found!\n");
+	pr_err("videocodec_unregister: given codec not found!\n");
 	return -EINVAL;
 }
 
