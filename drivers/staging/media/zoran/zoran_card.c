@@ -1272,10 +1272,8 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	}
 
 	/* take care of Natoma chipset and a revision 1 zr36057 */
-	if ((pci_pci_problems & PCIPCI_NATOMA) && zr->revision <= 1) {
-		zr->jpg_buffers.need_contiguous = 1;
+	if ((pci_pci_problems & PCIPCI_NATOMA) && zr->revision <= 1)
 		pci_info(zr->pci_dev, "ZR36057/Natoma bug, max. buffer size is 128K\n");
-	}
 
 	if (zr36057_init(zr) < 0)
 		goto zr_detach_vfe;
