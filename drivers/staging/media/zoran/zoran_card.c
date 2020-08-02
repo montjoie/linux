@@ -652,8 +652,7 @@ static int zoran_register_i2c(struct zoran *zr)
 {
 	zr->i2c_algo = zoran_i2c_bit_data_template;
 	zr->i2c_algo.data = zr;
-	strscpy(zr->i2c_adapter.name, ZR_DEVNAME(zr),
-		sizeof(zr->i2c_adapter.name));
+	strscpy(zr->i2c_adapter.name, ZR_DEVNAME(zr), sizeof(zr->i2c_adapter.name));
 	i2c_set_adapdata(&zr->i2c_adapter, &zr->v4l2_dev);
 	zr->i2c_adapter.algo_data = &zr->i2c_algo;
 	zr->i2c_adapter.dev.parent = &zr->pci_dev->dev;
@@ -666,8 +665,7 @@ static void zoran_unregister_i2c(struct zoran *zr)
 }
 
 /* Check a zoran_params struct for correctness, insert default params */
-int zoran_check_jpg_settings(struct zoran *zr,
-			     struct zoran_jpg_settings *settings, int try)
+int zoran_check_jpg_settings(struct zoran *zr, struct zoran_jpg_settings *settings, int try)
 {
 	int err = 0, err0 = 0;
 
@@ -866,13 +864,10 @@ void zoran_open_init_params(struct zoran *zr)
 		zr->jpg_settings.odd_even = 0;
 	zr->jpg_settings.jpg_comp.APPn = 0;
 	zr->jpg_settings.jpg_comp.APP_len = 0;	/* No APPn marker */
-	memset(zr->jpg_settings.jpg_comp.APP_data, 0,
-	       sizeof(zr->jpg_settings.jpg_comp.APP_data));
+	memset(zr->jpg_settings.jpg_comp.APP_data, 0, sizeof(zr->jpg_settings.jpg_comp.APP_data));
 	zr->jpg_settings.jpg_comp.COM_len = 0;	/* No COM marker */
-	memset(zr->jpg_settings.jpg_comp.COM_data, 0,
-	       sizeof(zr->jpg_settings.jpg_comp.COM_data));
-	zr->jpg_settings.jpg_comp.jpeg_markers =
-	    V4L2_JPEG_MARKER_DHT | V4L2_JPEG_MARKER_DQT;
+	memset(zr->jpg_settings.jpg_comp.COM_data, 0, sizeof(zr->jpg_settings.jpg_comp.COM_data));
+	zr->jpg_settings.jpg_comp.jpeg_markers = V4L2_JPEG_MARKER_DHT | V4L2_JPEG_MARKER_DQT;
 	i = zoran_check_jpg_settings(zr, &zr->jpg_settings, 0);
 	if (i)
 		dprintk(1, KERN_ERR "%s: %s internal error\n",
@@ -1059,8 +1054,7 @@ void zoran_vdev_release(struct video_device *vdev)
 	kfree(vdev);
 }
 
-static struct videocodec_master *zoran_setup_videocodec(struct zoran *zr,
-							int type)
+static struct videocodec_master *zoran_setup_videocodec(struct zoran *zr, int type)
 {
 	struct videocodec_master *m = NULL;
 
@@ -1214,8 +1208,7 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	 * keep general card information, no settings or anything
 	 */
 	zr->card = zoran_cards[card_num];
-	snprintf(ZR_DEVNAME(zr), sizeof(ZR_DEVNAME(zr)), "%s[%u]",
-		 zr->card.name, zr->id);
+	snprintf(ZR_DEVNAME(zr), sizeof(ZR_DEVNAME(zr)), "%s[%u]", zr->card.name, zr->id);
 
 	zr->zr36057_mem = pci_ioremap_bar(zr->pci_dev, 0);
 	if (!zr->zr36057_mem) {
@@ -1266,14 +1259,12 @@ static int zoran_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		goto zr_free_irq;
 	}
 
-	zr->decoder = v4l2_i2c_new_subdev(&zr->v4l2_dev, &zr->i2c_adapter,
-					  zr->card.i2c_decoder, 0,
+	zr->decoder = v4l2_i2c_new_subdev(&zr->v4l2_dev, &zr->i2c_adapter, zr->card.i2c_decoder, 0,
 					  zr->card.addrs_decoder);
 
 	if (zr->card.i2c_encoder)
 		zr->encoder = v4l2_i2c_new_subdev(&zr->v4l2_dev, &zr->i2c_adapter,
-						  zr->card.i2c_encoder, 0,
-						  zr->card.addrs_encoder);
+						  zr->card.i2c_encoder, 0, zr->card.addrs_encoder);
 
 	dprintk(2, KERN_INFO "%s: Initializing videocodec bus...\n", ZR_DEVNAME(zr));
 

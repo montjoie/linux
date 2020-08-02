@@ -1501,8 +1501,7 @@ static int zoran_enum_fmt(struct zoran *zr, struct v4l2_fmtdesc *fmt, int flag)
 
 	for (num = i = 0; i < NUM_FORMATS; i++) {
 		if (zoran_formats[i].flags & flag && num++ == fmt->index) {
-			strscpy(fmt->description, zoran_formats[i].name,
-				sizeof(fmt->description));
+			strscpy(fmt->description, zoran_formats[i].name, sizeof(fmt->description));
 			/* fmt struct pre-zeroed, so adding '\0' not needed */
 			fmt->pixelformat = zoran_formats[i].fourcc;
 			if (zoran_formats[i].flags & ZORAN_FORMAT_COMPRESSED)
@@ -1540,8 +1539,7 @@ static int zoran_enum_fmt_vid_overlay(struct file *file, void *__fh,
 	return zoran_enum_fmt(zr, f, ZORAN_FORMAT_OVERLAY);
 }
 
-static int zoran_g_fmt_vid_out(struct file *file, void *__fh,
-			       struct v4l2_format *fmt)
+static int zoran_g_fmt_vid_out(struct file *file, void *__fh, struct v4l2_format *fmt)
 {
 	struct zoran_fh *fh = __fh;
 
@@ -1562,8 +1560,7 @@ static int zoran_g_fmt_vid_out(struct file *file, void *__fh,
 	return 0;
 }
 
-static int zoran_g_fmt_vid_cap(struct file *file, void *__fh,
-			       struct v4l2_format *fmt)
+static int zoran_g_fmt_vid_cap(struct file *file, void *__fh, struct v4l2_format *fmt)
 {
 	struct zoran_fh *fh = __fh;
 	struct zoran *zr = fh->zr;
@@ -1728,8 +1725,7 @@ static int zoran_s_fmt_vid_overlay(struct file *file, void *__fh,
 	return res;
 }
 
-static int zoran_s_fmt_vid_out(struct file *file, void *__fh,
-			       struct v4l2_format *fmt)
+static int zoran_s_fmt_vid_out(struct file *file, void *__fh, struct v4l2_format *fmt)
 {
 	struct zoran_fh *fh = __fh;
 	struct zoran *zr = fh->zr;
@@ -1795,8 +1791,7 @@ static int zoran_s_fmt_vid_out(struct file *file, void *__fh,
 
 	/* tell the user what we actually did */
 	fmt->fmt.pix.width = settings.img_width / settings.HorDcm;
-	fmt->fmt.pix.height = settings.img_height * 2 /
-		(settings.TmpDcm * settings.VerDcm);
+	fmt->fmt.pix.height = settings.img_height * 2 / (settings.TmpDcm * settings.VerDcm);
 	if (settings.TmpDcm == 1)
 		fmt->fmt.pix.field = (fh->jpg_settings.odd_even ?
 				V4L2_FIELD_SEQ_TB : V4L2_FIELD_SEQ_BT);
@@ -1809,8 +1804,7 @@ static int zoran_s_fmt_vid_out(struct file *file, void *__fh,
 	return res;
 }
 
-static int zoran_s_fmt_vid_cap(struct file *file, void *__fh,
-			       struct v4l2_format *fmt)
+static int zoran_s_fmt_vid_cap(struct file *file, void *__fh, struct v4l2_format *fmt)
 {
 	struct zoran_fh *fh = __fh;
 	struct zoran *zr = fh->zr;
@@ -1843,8 +1837,7 @@ static int zoran_s_fmt_vid_cap(struct file *file, void *__fh,
 
 	map_mode_raw(fh);
 
-	res = zoran_v4l_set_format(fh, fmt->fmt.pix.width, fmt->fmt.pix.height,
-				   &zoran_formats[i]);
+	res = zoran_v4l_set_format(fh, fmt->fmt.pix.width, fmt->fmt.pix.height, &zoran_formats[i]);
 	if (res)
 		return res;
 
@@ -2259,8 +2252,7 @@ static int zoran_s_std(struct file *file, void *__fh, v4l2_std_id std)
 	return res;
 }
 
-static int zoran_enum_input(struct file *file, void *__fh,
-			    struct v4l2_input *inp)
+static int zoran_enum_input(struct file *file, void *__fh, struct v4l2_input *inp)
 {
 	struct zoran_fh *fh = __fh;
 	struct zoran *zr = fh->zr;
@@ -2416,8 +2408,7 @@ static int zoran_s_selection(struct file *file, void *__fh, struct v4l2_selectio
 	return res;
 }
 
-static int zoran_g_jpegcomp(struct file *file, void *__fh,
-			    struct v4l2_jpegcompression *params)
+static int zoran_g_jpegcomp(struct file *file, void *__fh, struct v4l2_jpegcompression *params)
 {
 	struct zoran_fh *fh = __fh;
 
