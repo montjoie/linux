@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * VIDEO MOTION CODECs internal API for video devices
  *
@@ -5,8 +6,6 @@
  * bound to a master device.
  *
  * (c) 2002 Wolfgang Scherr <scherr@net4you.at>
- *
- * $Id: videocodec.c,v 1.1.2.8 2003/03/29 07:16:04 rbultje Exp $
  *
  * ------------------------------------------------------------------------
  *
@@ -77,16 +76,15 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 	int res;
 
 	if (!master) {
-		pr_err("videocodec_attach: no data\n");
+		pr_err("%s: no data\n", __func__);
 		return NULL;
 	}
 
-	dprintk(2,
-		"videocodec_attach: '%s', flags %lx, magic %lx\n",
+	dprintk(2, "%s: '%s', flags %lx, magic %lx\n", __func__,
 		master->name, master->flags, master->magic);
 
 	if (!h) {
-		pr_err("videocodec_attach: no device available\n");
+		pr_err("%s: no device available\n", __func__);
 		return NULL;
 	}
 
@@ -94,28 +92,22 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 		// attach only if the slave has at least the flags
 		// expected by the master
 		if ((master->flags & h->codec->flags) == master->flags) {
-			dprintk(4, "videocodec_attach: try '%s'\n",
-				h->codec->name);
+			dprintk(4, "%s: try '%s'\n", __func__, h->codec->name);
 
 			if (!try_module_get(h->codec->owner))
 				return NULL;
 
-			codec = kmemdup(h->codec, sizeof(struct videocodec),
-					GFP_KERNEL);
-			if (!codec) {
-				pr_err("videocodec_attach: no mem\n");
+			codec = kmemdup(h->codec, sizeof(struct videocodec), GFP_KERNEL);
+			if (!codec)
 				goto out_module_put;
-			}
 
 			res = strlen(codec->name);
-			snprintf(codec->name + res, sizeof(codec->name) - res,
-				 "[%d]", h->attached);
+			snprintf(codec->name + res, sizeof(codec->name) - res, "[%d]", h->attached);
 			codec->master_data = master;
 			res = codec->setup(codec);
 			if (res == 0) {
-				dprintk(3, "videocodec_attach '%s'\n",
-					codec->name);
-				ptr = kzalloc(sizeof(struct attached_list), GFP_KERNEL);
+				dprintk(3, "%s: '%s'\n", __func__, codec->name);
+				ptr = kzalloc(sizeof(*ptr), GFP_KERNEL);
 				if (!ptr)
 					goto out_kfree;
 				ptr->codec = codec;
@@ -123,15 +115,12 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 				a = h->list;
 				if (!a) {
 					h->list = ptr;
-					dprintk(4,
-						"videocodec: first element\n");
+					dprintk(4, "videocodec: first element\n");
 				} else {
 					while (a->next)
 						a = a->next;	// find end
 					a->next = ptr;
-					dprintk(4,
-						"videocodec: in after '%s'\n",
-						h->codec->name);
+					dprintk(4, "videocodec: in after '%s'\n", h->codec->name);
 				}
 
 				h->attached += 1;
@@ -143,7 +132,7 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 		h = h->next;
 	}
 
-	pr_err("videocodec_attach: no codec found!\n");
+	pr_err("%s: no codec found!\n", __func__);
 	return NULL;
 
  out_module_put:
@@ -152,6 +141,7 @@ struct videocodec *videocodec_attach(struct videocodec_master *master)
 	kfree(codec);
 	return NULL;
 }
+EXPORT_SYMBOL(videocodec_attach);
 
 int videocodec_detach(struct videocodec *codec)
 {
@@ -160,16 +150,15 @@ int videocodec_detach(struct videocodec *codec)
 	int res;
 
 	if (!codec) {
-		pr_err("videocodec_detach: no data\n");
+		pr_err("%s: no data\n", __func__);
 		return -EINVAL;
 	}
 
-	dprintk(2,
-		"videocodec_detach: '%s', type: %x, flags %lx, magic %lx\n",
+	dprintk(2, "%s: '%s', type: %x, flags %lx, magic %lx\n", __func__,
 		codec->name, codec->type, codec->flags, codec->magic);
 
 	if (!h) {
-		pr_err("videocodec_detach: no device left...\n");
+		pr_err("%s: no device left...\n", __func__);
 		return -ENXIO;
 	}
 
@@ -180,22 +169,18 @@ int videocodec_detach(struct videocodec *codec)
 			if (codec == a->codec) {
 				res = a->codec->unset(a->codec);
 				if (res >= 0) {
-					dprintk(3,
-						"videocodec_detach: '%s'\n",
-						a->codec->name);
+					dprintk(3, "%s: '%s'\n", __func__, a->codec->name);
 					a->codec->master_data = NULL;
 				} else {
-					pr_err("videocodec_detach: '%s'\n", a->codec->name);
+					pr_err("%s: '%s'\n", __func__, a->codec->name);
 					a->codec->master_data = NULL;
 				}
 				if (!prev) {
 					h->list = a->next;
-					dprintk(4,
-						"videocodec: delete first\n");
+					dprintk(4, "videocodec: delete first\n");
 				} else {
 					prev->next = a->next;
-					dprintk(4,
-						"videocodec: delete middle\n");
+					dprintk(4, "videocodec: delete middle\n");
 				}
 				module_put(a->codec->owner);
 				kfree(a->codec);
@@ -209,16 +194,17 @@ int videocodec_detach(struct videocodec *codec)
 		h = h->next;
 	}
 
-	pr_err("videocodec_detach: given codec not found!\n");
+	pr_err("%s: given codec not found!\n", __func__);
 	return -EINVAL;
 }
+EXPORT_SYMBOL(videocodec_detach);
 
 int videocodec_register(const struct videocodec *codec)
 {
 	struct codec_list *ptr, *h = codeclist_top;
 
 	if (!codec) {
-		pr_err("videocodec_register: no data!\n");
+		pr_err("%s: no data!\n", __func__);
 		return -EINVAL;
 	}
 
@@ -226,7 +212,7 @@ int videocodec_register(const struct videocodec *codec)
 		"videocodec: register '%s', type: %x, flags %lx, magic %lx\n",
 		codec->name, codec->type, codec->flags, codec->magic);
 
-	ptr = kzalloc(sizeof(struct codec_list), GFP_KERNEL);
+	ptr = kzalloc(sizeof(*ptr), GFP_KERNEL);
 	if (!ptr)
 		return -ENOMEM;
 	ptr->codec = codec;
@@ -244,13 +230,14 @@ int videocodec_register(const struct videocodec *codec)
 
 	return 0;
 }
+EXPORT_SYMBOL(videocodec_register);
 
 int videocodec_unregister(const struct videocodec *codec)
 {
 	struct codec_list *prev = NULL, *h = codeclist_top;
 
 	if (!codec) {
-		pr_err("videocodec_unregister: no data!\n");
+		pr_err("%s: no data!\n", __func__);
 		return -EINVAL;
 	}
 
@@ -259,7 +246,7 @@ int videocodec_unregister(const struct videocodec *codec)
 		codec->name, codec->type, codec->flags, codec->magic);
 
 	if (!h) {
-		pr_err("videocodec_unregister: no device left...\n");
+		pr_err("%s: no device left...\n", __func__);
 		return -ENXIO;
 	}
 
@@ -287,9 +274,10 @@ int videocodec_unregister(const struct videocodec *codec)
 		h = h->next;
 	}
 
-	pr_err("videocodec_unregister: given codec not found!\n");
+	pr_err("%s: given codec not found!\n", __func__);
 	return -EINVAL;
 }
+EXPORT_SYMBOL(videocodec_unregister);
 
 #ifdef CONFIG_PROC_FS
 static int proc_videocodecs_show(struct seq_file *m, void *v)
@@ -346,11 +334,6 @@ static void __exit videocodec_exit(void)
 	remove_proc_entry("videocodecs", NULL);
 #endif
 }
-
-EXPORT_SYMBOL(videocodec_attach);
-EXPORT_SYMBOL(videocodec_detach);
-EXPORT_SYMBOL(videocodec_register);
-EXPORT_SYMBOL(videocodec_unregister);
 
 module_init(videocodec_init);
 module_exit(videocodec_exit);

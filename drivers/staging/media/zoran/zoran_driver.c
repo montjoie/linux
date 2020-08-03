@@ -150,185 +150,6 @@ const struct zoran_format zoran_formats[] = {
 	}
 };
 
-int zoran_status(struct zoran *zr)
-{
-	u32 v;
-	int w, h, r, g, b;
-	int still;
-	int Still_LitEndian = 0;
-
-	pci_info(zr->pci_dev, "Codec %s\n", codec_name(zr->codec_mode));
-	pci_info(zr->pci_dev, "Norm is %s\n", norm_name(zr->norm));
-	pci_info(zr->pci_dev, "Input is %d %s\n", zr->input, zr->card.input[zr->input].name);
-	pci_info(zr->pci_dev, "MAPMODE is %s\n", map_mode(zr->map_mode));
-
-	v = btread(ZR36057_VFEHCR);
-	pci_info(zr->pci_dev, "ZR36057_VFEHCR %x\n", v);
-	v = btread(ZR36057_VFEVCR);
-	pci_info(zr->pci_dev, "ZR36057_VFEVCR %x\n", v);
-	v = btread(ZR36057_VFESPFR);
-	pci_info(zr->pci_dev, "ZR36057_VFESPFR %x\n", v);
-	switch (v & 0x24) {
-	case 0:
-		pci_info(zr->pci_dev, "ZR36057_VFESPFR YUV422");
-		break;
-	default:
-		pci_info(zr->pci_dev, "ZR36057_VFESPFR unk format");
-	}
-
-	v = btread(ZR36057_ICR);
-	pci_info(zr->pci_dev, "ZR36057_ICR %x\n", v);
-	if (v & ZR36057_ICR_CodRepIRQ)
-		 pci_info(zr->pci_dev, "ZR36057_ICR ZR36057_ICR_CodRepIRQ\n");
-	if (v & ZR36057_ICR_JPEGRepIRQ)
-		 pci_info(zr->pci_dev, "ZR36057_ICR ZR36057_ICR_JPEGRepIRQ\n");
-	if (v & ZR36057_ICR_IntPinEn)
-		 pci_info(zr->pci_dev, "ZR36057_ICR ZR36057_ICR_IntPinEn\n");
-
-	v = btread(ZR36057_VSSFGR);
-	pci_info(zr->pci_dev, "ZR36057_VSSFGR %x\n", v);
-	if (v & ZR36057_VSSFGR_SnapShot)
-		 pci_info(zr->pci_dev, "ZR36057_VSSFGR ZR36057_VSSFGR_SnapShot\n");
-	if (v & ZR36057_VSSFGR_FrameGrab)
-		 pci_info(zr->pci_dev, "ZR36057_VSSFGR ZR36057_VSSFGR_FrameGrab\n");
-
-	v = btread(ZR36057_VDCR);
-	w = v & GENMASK(9, 0);
-	h = (v >> ZR36057_VDCR_VidWinHt) & GENMASK(9, 0);
-	pci_info(zr->pci_dev, "ZR36057_VDCR %x %dx%d\n", v, w, h);
-	if (v & ZR36057_VDCR_VidEn)
-		pci_info(zr->pci_dev, "ZR36057_VDCR Video Enabled\n");
-	else
-		pci_info(zr->pci_dev, "ZR36057_VDCR Video Disabled\n");
-	if (!(v & ZR36057_VDCR_Triton)) {
-		pci_info(zr->pci_dev, "ZR36057_VDCR TRITON\n");
-	}
-	w = (v & GENMASK(30, 23)) >> ZR36057_VDCR_MinPix;
-	pci_info(zr->pci_dev, "ZR36057_VDCR Min pix %d\n", w);
-
-	v = btread(ZR36057_MMTR);
-	pci_info(zr->pci_dev, "ZR36057_MMTR %x\n", v);
-	v = btread(ZR36057_MMBR);
-	pci_info(zr->pci_dev, "ZR36057_MMBR %x\n", v);
-
-	v = btread(ZR36057_OCR);
-	if (v & ZR36057_OCR_OvlEnable)
-		pci_info(zr->pci_dev, "ZR36057_OCR %x enabled\n", v);
-	else
-		pci_info(zr->pci_dev, "ZR36057_OCR %x disabled\n", v);
-
-	v = btread(ZR36057_SPGPPCR);
-	pci_info(zr->pci_dev, "ZR36057_SPGPPCR %x\n", v);
-
-	v = btread(ZR36057_GPPGCR1);
-	pci_info(zr->pci_dev, "ZR36057_GPPGCR1 %x\n", v);
-
-	v = btread(ZR36057_MCSAR);
-	pci_info(zr->pci_dev, "ZR36057_MCSAR %x\n", v);
-
-	v = btread(ZR36057_MCTCR);
-	pci_info(zr->pci_dev, "ZR36057_MCTCR %x\n", v);
-
-	v = btread(ZR36057_MCMPR);
-	pci_info(zr->pci_dev, "ZR36057_MCMPR %x\n", v);
-/*
-	v = btread(ZR36057_ISR);
-	pci_info(zr->pci_dev, "ZR36057_ISR %x\n", v);
-
-	v = btread(ZR36057_ICR);
-	pci_info(zr->pci_dev, "ZR36057_ICR %x\n", v);
-*//*
-	v = btread(ZR36057_I2CBR);
-	pci_info(zr->pci_dev, "ZR36057_I2CBR %x\n", v);
-*/
-	v = btread(ZR36057_JMC);
-	pci_info(zr->pci_dev, "ZR36057_JMC %x\n", v);
-	Still_LitEndian = v & 1;
-	if (Still_LitEndian)
-		pci_info(zr->pci_dev, "ZR36057_JMC Little Endian %x\n", v);
-	else
-		pci_info(zr->pci_dev, "ZR36057_JMC Big Endian %x\n", v);
-	if (v & BIT(31))
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG Mode %x\n", v);
-	else
-		pci_info(zr->pci_dev, "ZR36057_JMC MPEG Mode%x \n", v);
-	w = (v & GENMASK(30, 29)) >> 29;
-	switch(w) {
-	case 0:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Still image Decompression %x\n", v);
-		break;
-	case 1:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Still image Compression %x\n", v);
-		break;
-	case 2:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Motion video Decompression %x\n", v);
-		break;
-	case 3:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: Motion video Compression %x\n", v);
-		break;
-	default:
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: bad mode %x\n", v);
-		break;
-	}
-	if (v & BIT(5))
-		pci_info(zr->pci_dev, "ZR36057_JMC JPEG: GO %x\n", v);
-		
-	v = btread(ZR36057_JPC);
-	pci_info(zr->pci_dev, "ZR36057_JPC %x\n", v);
-
-	v = btread(ZR36057_VSP);
-	w = (v & GENMASK(23,16)) >> 16;
-	h = v & GENMASK(15,0);
-	pci_info(zr->pci_dev, "ZR36057_VSP %x (%d %d)\n", v, w, h);
-
-	v = btread(ZR36057_HSP);
-	h = (v & GENMASK(31,16)) >> 16;
-	w = v & GENMASK(15, 0);
-	pci_info(zr->pci_dev, "ZR36057_HSP %x (%d %d)\n", v, h, w);
-
-	v = btread(ZR36057_FHAP);
-	pci_info(zr->pci_dev, "ZR36057_FHAP %x\n", v);
-
-	v = btread(ZR36057_FVAP);
-	pci_info(zr->pci_dev, "ZR36057_FVAP %x\n", v);
-
-	v = btread(ZR36057_FPP);
-	pci_info(zr->pci_dev, "ZR36057_FPP %x\n", v);
-
-	v = btread(ZR36057_JCBA);
-	pci_info(zr->pci_dev, "ZR36057_JCBA %x\n", v);
-	v = btread(ZR36057_JCFT);
-	pci_info(zr->pci_dev, "ZR36057_JCFT %x fifo=%ld\n", v, v & GENMASK(7, 0));
-
-	v = btread(ZR36057_JCGI);
-	pci_info(zr->pci_dev, "ZR36057_JCGI %x JPEGuestID=%lx JPEGuestReg=%lx\n", v,
-		(v & GENMASK(6, 4)),
-		(v & GENMASK(2, 0)));
-
-	v = btread(ZR36057_STR);
-	pci_info(zr->pci_dev, "ZR36057_STR %x\n", v);
-	if (Still_LitEndian) {
-		still = v & BIT(31);
-		r = (v & GENMASK(23, 16)) >> 16;
-		g = (v & GENMASK(18, 8)) >> 8;
-		b = v & GENMASK(7, 0);
-	} else {
-		still = v & BIT(7);
-		r = (v & GENMASK(15, 8)) >> 8;
-		g = (v & GENMASK(23, 16)) >> 16;
-		b = (v & GENMASK(31, 24)) >> 24;
-	}
-	if (still)
-		pci_info(zr->pci_dev, "ZR36057_STR availlable R=%d G=%d B=%d\n", r, g, b);
-	else
-		pci_info(zr->pci_dev, "ZR36057_STR not availlable R=%d G=%d B=%d\n", r, g, b);
-		
-/*	for (i = 0; i < BUZ_NUM_STAT_COM; i++)
-		pci_info(zr->pci_dev, "STAT COM %d %x buf=%x\n", i, zr->stat_com[i], zr->inuse[i]);*/
-	return 0;
-}
-
-
 #define NUM_FORMATS ARRAY_SIZE(zoran_formats)
 
 	/* small helper function for calculating buffersizes for v4l2
@@ -735,7 +556,7 @@ static int zoran_s_fmt_vid_out(struct file *file, void *__fh,
 		return -EINVAL;
 	}
 
-	if (!fmt->fmt.pix.height || fmt->fmt.pix.width)
+	if (!fmt->fmt.pix.height || !fmt->fmt.pix.width)
 		return -EINVAL;
 
 	settings = zr->jpg_settings;
@@ -1476,7 +1297,6 @@ static int zr_vout_vb2_start_streaming(struct vb2_queue *vq, unsigned int count)
 	zr36057_set_memgrab(zr, 1);
 	btor(ZR36057_ICR_IntPinEn, ZR36057_ICR);
 	zr->running = zr->map_mode;
-	zoran_status(zr);
 	return 0;
 }
 

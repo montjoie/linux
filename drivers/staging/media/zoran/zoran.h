@@ -471,7 +471,8 @@ static void btprint(u32 dat, u32 adr)
 
 /* There was something called _ALPHA_BUZ that used the PCI address instead of
  * the kernel iomapped address for btread/btwrite.  */
-#define btwrite(dat, adr)    {btprint(dat, adr); writel((dat), zr->zr36057_mem + (adr));}
+/*#define btwrite(dat, adr)    {btprint(dat, adr); writel((dat), zr->zr36057_mem + (adr));}*/
+#define btwrite(dat, adr)    writel((dat), zr->zr36057_mem + (adr))
 #define btread(adr)         readl(zr->zr36057_mem + (adr))
 
 #define btand(dat, adr)      btwrite((dat) & btread(adr), adr)
