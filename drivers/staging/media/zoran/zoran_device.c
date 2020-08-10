@@ -278,7 +278,9 @@ static void zr36057_adjust_vfe(struct zoran *zr, enum zoran_codec_mode mode)
 		btwrite(reg, ZR36057_VFEHCR);
 		break;
 	case BUZ_MODE_MOTION_COMPRESS:
+		/* fallthrough */
 	case BUZ_MODE_IDLE:
+		/* fallthrough */
 	default:
 		if ((zr->norm & V4L2_STD_NTSC) ||
 		    (zr->card.type == LML33R10 &&
@@ -531,6 +533,7 @@ static void zr36057_set_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 	/* MJPEG compression mode */
 	switch (mode) {
 	case BUZ_MODE_MOTION_COMPRESS:
+		/* fallthrough */
 	default:
 		reg = ZR36057_JMC_MJPGCmpMode;
 		break;
@@ -592,6 +595,7 @@ static void zr36057_set_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 	/* NOTE: decimal values here */
 	switch (mode) {
 	case BUZ_MODE_STILL_COMPRESS:
+		/* fallthrough */
 	case BUZ_MODE_MOTION_COMPRESS:
 		if (zr->card.type != BUZ)
 			reg = 140;
@@ -600,6 +604,7 @@ static void zr36057_set_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 		break;
 
 	case BUZ_MODE_STILL_DECOMPRESS:
+		/* fallthrough */
 	case BUZ_MODE_MOTION_DECOMPRESS:
 		reg = 20;
 		break;
@@ -837,6 +842,7 @@ void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 		break;
 
 	case BUZ_MODE_IDLE:
+		/* fallthrough */
 	default:
 		/* shut down processing */
 		btand(~(zr->card.jpeg_int | ZR36057_ICR_JPEGRepIRQ), ZR36057_ICR);
