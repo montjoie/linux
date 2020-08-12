@@ -558,8 +558,7 @@ static void zr36057_set_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 
 	/* vertical */
 	btor(ZR36057_VFEVCR_VSPol, ZR36057_VFEVCR);
-	reg = (6 << ZR36057_VSP_VsyncSize) |
-	      (tvn->Ht << ZR36057_VSP_FrmTot);
+	reg = (6 << ZR36057_VSP_VsyncSize) | (tvn->Ht << ZR36057_VSP_FrmTot);
 	btwrite(reg, ZR36057_VSP);
 	reg = ((zr->jpg_settings.img_y + tvn->VStart) << ZR36057_FVAP_NAY) |
 	      (zr->jpg_settings.img_height << ZR36057_FVAP_PAY);
@@ -570,11 +569,9 @@ static void zr36057_set_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 		btor(ZR36057_VFEHCR_HSPol, ZR36057_VFEHCR);
 	else
 		btand(~ZR36057_VFEHCR_HSPol, ZR36057_VFEHCR);
-	reg = ((tvn->HSyncStart) << ZR36057_HSP_HsyncStart) |
-	      (tvn->Wt << ZR36057_HSP_LineTot);
+	reg = ((tvn->HSyncStart) << ZR36057_HSP_HsyncStart) | (tvn->Wt << ZR36057_HSP_LineTot);
 	btwrite(reg, ZR36057_HSP);
-	reg = ((zr->jpg_settings.img_x +
-		tvn->HStart + 4) << ZR36057_FHAP_NAX) |
+	reg = ((zr->jpg_settings.img_x + tvn->HStart + 4) << ZR36057_FHAP_NAX) |
 	      (zr->jpg_settings.img_width << ZR36057_FHAP_PAX);
 	btwrite(reg, ZR36057_FHAP);
 
@@ -795,18 +792,14 @@ void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 				   sizeof(struct jpeg_com_marker), &com);
 
 		/* Setup the JPEG codec */
-		zr->codec->control(zr->codec, CODEC_S_JPEG_TDS_BYTE,
-				   sizeof(int), &field_size);
-		zr->codec->set_video(zr->codec, zr->timing, &cap,
-				     &zr->card.vfe_pol);
+		zr->codec->control(zr->codec, CODEC_S_JPEG_TDS_BYTE, sizeof(int), &field_size);
+		zr->codec->set_video(zr->codec, zr->timing, &cap, &zr->card.vfe_pol);
 		zr->codec->set_mode(zr->codec, CODEC_DO_COMPRESSION);
 
 		/* Setup the VFE */
 		if (zr->vfe) {
-			zr->vfe->control(zr->vfe, CODEC_S_JPEG_TDS_BYTE,
-					 sizeof(int), &field_size);
-			zr->vfe->set_video(zr->vfe, zr->timing, &cap,
-					   &zr->card.vfe_pol);
+			zr->vfe->control(zr->vfe, CODEC_S_JPEG_TDS_BYTE, sizeof(int), &field_size);
+			zr->vfe->set_video(zr->vfe, zr->timing, &cap, &zr->card.vfe_pol);
 			zr->vfe->set_mode(zr->vfe, CODEC_DO_COMPRESSION);
 		}
 
@@ -830,13 +823,11 @@ void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 		jpeg_codec_sleep(zr, 0);
 		/* Setup the VFE */
 		if (zr->vfe) {
-			zr->vfe->set_video(zr->vfe, zr->timing, &cap,
-					   &zr->card.vfe_pol);
+			zr->vfe->set_video(zr->vfe, zr->timing, &cap, &zr->card.vfe_pol);
 			zr->vfe->set_mode(zr->vfe, CODEC_DO_EXPANSION);
 		}
 		/* Setup the JPEG codec */
-		zr->codec->set_video(zr->codec, zr->timing, &cap,
-				     &zr->card.vfe_pol);
+		zr->codec->set_video(zr->codec, zr->timing, &cap, &zr->card.vfe_pol);
 		zr->codec->set_mode(zr->codec, CODEC_DO_EXPANSION);
 
 		init_jpeg_queue(zr);
@@ -849,10 +840,8 @@ void zr36057_enable_jpg(struct zoran *zr, enum zoran_codec_mode mode)
 	case BUZ_MODE_IDLE:
 	default:
 		/* shut down processing */
-		btand(~(zr->card.jpeg_int | ZR36057_ICR_JPEGRepIRQ),
-		      ZR36057_ICR);
-		btwrite(zr->card.jpeg_int | ZR36057_ICR_JPEGRepIRQ,
-			ZR36057_ISR);
+		btand(~(zr->card.jpeg_int | ZR36057_ICR_JPEGRepIRQ), ZR36057_ICR);
+		btwrite(zr->card.jpeg_int | ZR36057_ICR_JPEGRepIRQ, ZR36057_ISR);
 		btand(~ZR36057_JMC_Go_en, ZR36057_JMC);	// \Go_en
 
 		msleep(50);
@@ -882,25 +871,21 @@ void zoran_feed_stat_com(struct zoran *zr)
 
 	int frame, i, max_stat_com;
 
-	max_stat_com =
-	    (zr->jpg_settings.TmpDcm ==
-	     1) ? BUZ_NUM_STAT_COM : (BUZ_NUM_STAT_COM >> 1);
+	max_stat_com = (zr->jpg_settings.TmpDcm == 1) ? BUZ_NUM_STAT_COM : (BUZ_NUM_STAT_COM >> 1);
 
 	while ((zr->jpg_dma_head - zr->jpg_dma_tail) < max_stat_com &&
 	       zr->jpg_dma_head < zr->jpg_que_head) {
 		frame = zr->jpg_pend[zr->jpg_dma_head & BUZ_MASK_FRAME];
 		if (zr->jpg_settings.TmpDcm == 1) {
 			/* fill 1 stat_com entry */
-			i = (zr->jpg_dma_head -
-			     zr->jpg_err_shift) & BUZ_MASK_STAT_COM;
+			i = (zr->jpg_dma_head - zr->jpg_err_shift) & BUZ_MASK_STAT_COM;
 			if (!(zr->stat_com[i] & cpu_to_le32(1)))
 				break;
 			zr->stat_com[i] =
 			    cpu_to_le32(zr->jpg_buffers.buffer[frame].jpg.frag_tab_bus);
 		} else {
 			/* fill 2 stat_com entries */
-			i = ((zr->jpg_dma_head -
-			      zr->jpg_err_shift) & 1) * 2;
+			i = ((zr->jpg_dma_head - zr->jpg_err_shift) & 1) * 2;
 			if (!(zr->stat_com[i] & cpu_to_le32(1)))
 				break;
 			zr->stat_com[i] =
@@ -1317,8 +1302,7 @@ void zoran_init_hardware(struct zoran *zr)
 
 	decoder_call(zr, core, init, 0);
 	decoder_call(zr, video, s_std, zr->norm);
-	decoder_call(zr, video, s_routing,
-		     zr->card.input[zr->input].muxsel, 0, 0);
+	decoder_call(zr, video, s_routing, zr->card.input[zr->input].muxsel, 0, 0);
 
 	encoder_call(zr, core, init, 0);
 	encoder_call(zr, video, s_std_output, zr->norm);
