@@ -264,8 +264,7 @@ int jpeg_codec_reset(struct zoran *zr)
  *   trying to understand this without the ZR36057 manual in front of
  *   you [AC].
  */
-
-static void zr36057_adjust_vfe(struct zoran *zr, enum zoran_codec_mode  mode)
+static void zr36057_adjust_vfe(struct zoran *zr, enum zoran_codec_mode mode)
 {
 	u32 reg;
 
