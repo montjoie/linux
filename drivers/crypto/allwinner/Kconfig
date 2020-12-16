@@ -94,6 +94,14 @@ config CRYPTO_DEV_SUN8I_CE_TRNG
 	  Select this option if you want to provide kernel-side support for
 	  the True Random Number Generator found in the Crypto Engine.
 
+config CRYPTO_DEV_SUN8I_CE_RSA
+	bool "Support for sun8i Allwinner Crypto Engine RSA"
+	depends on CRYPTO_DEV_SUN8I_CE
+	select CRYPTO_RSA
+	help
+	  This driver provides kernel-side support for the RSA TODO
+	  found in the sun8i Crypto Engine.
+
 config CRYPTO_DEV_SUN8I_SS
 	tristate "Support for Allwinner Security System cryptographic offloader"
 	select CRYPTO_SKCIPHER

@@ -23,6 +23,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/reset.h>
 #include <crypto/internal/rng.h>
+#include <crypto/internal/akcipher.h>
 #include <crypto/internal/skcipher.h>
 
 #include "sun8i-ce.h"
@@ -48,6 +49,10 @@ static const struct ce_variant ce_h3_variant = {
 	.esr = ESR_H3,
 	.prng = CE_ALG_PRNG,
 	.trng = CE_ID_NOTSUPP,
+	.maxrsakeysize = 2048,
+	.rsa_op_mode = { CE_OP_RSA_512, CE_OP_RSA_1024, CE_OP_RSA_2048,
+			CE_OP_RSA_3072, CE_OP_RSA_4096, },
+	.alg_akcipher = { CE_ID_NOTSUPP, CE_ALG_RSA, },
 };
 
 static const struct ce_variant ce_h5_variant = {
@@ -65,6 +70,10 @@ static const struct ce_variant ce_h5_variant = {
 	.esr = ESR_H5,
 	.prng = CE_ALG_PRNG,
 	.trng = CE_ID_NOTSUPP,
+	.maxrsakeysize = 2048,
+	.rsa_op_mode = { CE_OP_RSA_512, CE_OP_RSA_1024, CE_OP_RSA_2048,
+			CE_OP_RSA_3072, CE_ID_NOTSUPP, },
+	.alg_akcipher = { CE_ID_NOTSUPP, CE_ALG_RSA, },
 };
 
 static const struct ce_variant ce_h6_variant = {
@@ -87,6 +96,11 @@ static const struct ce_variant ce_h6_variant = {
 	.esr = ESR_H6,
 	.prng = CE_ALG_PRNG_V2,
 	.trng = CE_ALG_TRNG_V2,
+	.rsa_in_src = true,
+	.maxrsakeysize = 4096,
+	.rsa_op_mode = { CE_OP_RSA_512, CE_OP_RSA_1024, CE_OP_RSA_2048,
+			CE_OP_RSA_3072, CE_OP_RSA_4096, },
+	.alg_akcipher = { CE_ID_NOTSUPP, CE_ALG_RSA, },
 };
 
 static const struct ce_variant ce_a64_variant = {
@@ -104,6 +118,10 @@ static const struct ce_variant ce_a64_variant = {
 	.esr = ESR_A64,
 	.prng = CE_ALG_PRNG,
 	.trng = CE_ID_NOTSUPP,
+	.maxrsakeysize = 2048,
+	.rsa_op_mode = { CE_OP_RSA_512, CE_OP_RSA_1024, CE_OP_RSA_2048,
+			CE_ID_NOTSUPP, CE_ID_NOTSUPP, },
+	.alg_akcipher = { CE_ID_NOTSUPP, CE_ALG_RSA, },
 };
 
 static const struct ce_variant ce_r40_variant = {
@@ -121,6 +139,10 @@ static const struct ce_variant ce_r40_variant = {
 	.esr = ESR_R40,
 	.prng = CE_ALG_PRNG,
 	.trng = CE_ID_NOTSUPP,
+	.maxrsakeysize = 2048,
+	.rsa_op_mode = { CE_OP_RSA_512, CE_OP_RSA_1024, CE_OP_RSA_2048,
+			CE_ID_NOTSUPP, CE_ID_NOTSUPP, },
+	.alg_akcipher = { CE_ID_NOTSUPP, CE_ALG_RSA, },
 };
 
 /*
@@ -560,6 +582,33 @@ static struct sun8i_ce_alg_template ce_algs[] = {
 	}
 },
 #endif
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+{
+	.type = CRYPTO_ALG_TYPE_AKCIPHER,
+	.ce_algo_id = CE_ID_AKCIPHER_RSA,
+	.alg.rsa = {
+		.encrypt = sun8i_rsa_encrypt,
+		.decrypt = sun8i_rsa_decrypt,
+		.sign = sun8i_rsa_sign,
+		.verify = sun8i_rsa_verify,
+		.set_priv_key = sun8i_rsa_set_priv_key,
+		.set_pub_key = sun8i_rsa_set_pub_key,
+		.max_size = sun8i_rsa_max_size,
+		.init = sun8i_rsa_init,
+		.exit = sun8i_rsa_exit,
+		.base = {
+			.cra_name = "rsa",
+			.cra_driver_name = "rsa-sun8i-ce",
+			.cra_priority = 400,
+			.cra_flags = CRYPTO_ALG_TYPE_AKCIPHER |
+				CRYPTO_ALG_ASYNC | CRYPTO_ALG_NEED_FALLBACK,
+			.cra_ctxsize = sizeof(struct sun8i_rsa_tfm_ctx),
+			.cra_module = THIS_MODULE,
+			.cra_alignmask = 3,
+		}
+	}
+},
+#endif
 };
 
 #ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_DEBUG
@@ -592,6 +641,12 @@ static int sun8i_ce_debugfs_show(struct seq_file *seq, void *v)
 				   ce_algs[i].alg.rng.base.cra_driver_name,
 				   ce_algs[i].alg.rng.base.cra_name,
 				   ce_algs[i].stat_req, ce_algs[i].stat_bytes);
+			break;
+		case CRYPTO_ALG_TYPE_AKCIPHER:
+			seq_printf(seq, "%s %s reqs=%lu fallback=%lu\n",
+				   ce_algs[i].alg.rng.base.cra_driver_name,
+				   ce_algs[i].alg.rng.base.cra_name,
+				   ce_algs[i].stat_req, ce_algs[i].stat_fb);
 			break;
 		}
 	}
@@ -838,6 +893,18 @@ static int sun8i_ce_register_algs(struct sun8i_ce_dev *ce)
 				ce_algs[i].ce = NULL;
 			}
 			break;
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+		case CRYPTO_ALG_TYPE_AKCIPHER:
+			dev_info(ce->dev, "Register %s\n",
+				 ce_algs[i].alg.rsa.base.cra_name);
+			err = crypto_register_akcipher(&ce_algs[i].alg.rsa);
+			if (err != 0) {
+				dev_err(ce->dev, "Fail to register RSA %s\n",
+					ce_algs[i].alg.rsa.base.cra_name);
+				ce_algs[i].ce = NULL;
+			}
+			break;
+#endif
 		default:
 			ce_algs[i].ce = NULL;
 			dev_err(ce->dev, "ERROR: tried to register an unknown algo\n");
@@ -869,6 +936,13 @@ static void sun8i_ce_unregister_algs(struct sun8i_ce_dev *ce)
 				 ce_algs[i].alg.rng.base.cra_name);
 			crypto_unregister_rng(&ce_algs[i].alg.rng);
 			break;
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+		case CRYPTO_ALG_TYPE_AKCIPHER:
+			dev_info(ce->dev, "Unregister %d %s\n", i,
+				 ce_algs[i].alg.rsa.base.cra_name);
+			crypto_unregister_akcipher(&ce_algs[i].alg.rsa);
+			break;
+#endif
 		}
 	}
 }

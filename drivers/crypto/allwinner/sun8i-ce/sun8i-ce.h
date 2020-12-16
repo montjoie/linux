@@ -14,6 +14,7 @@
 #include <linux/crypto.h>
 #include <linux/hw_random.h>
 #include <crypto/internal/hash.h>
+#include <crypto/internal/rsa.h>
 #include <crypto/md5.h>
 #include <crypto/rng.h>
 #include <crypto/sha1.h>
@@ -57,6 +58,7 @@
 #define CE_ALG_SHA256           19
 #define CE_ALG_SHA384           20
 #define CE_ALG_SHA512           21
+#define CE_ALG_RSA		32
 #define CE_ALG_TRNG		48
 #define CE_ALG_PRNG		49
 #define CE_ALG_TRNG_V2		0x1c
@@ -81,6 +83,22 @@
 #define CE_ID_OP_ECB	0
 #define CE_ID_OP_CBC	1
 #define CE_ID_OP_MAX	2
+
+#define CE_ID_AKCIPHER_RSA 1
+#define CE_ID_AKCIPHER_MAX 2
+
+#define CE_ID_RSA_512	0
+#define CE_ID_RSA_1024	1
+#define CE_ID_RSA_2048	2
+#define CE_ID_RSA_3072	3
+#define CE_ID_RSA_4096	4
+#define CE_ID_RSA_MAX	5
+
+#define CE_OP_RSA_512	0
+#define CE_OP_RSA_1024	(1 << 28)
+#define CE_OP_RSA_2048	(2 << 28)
+#define CE_OP_RSA_3072	(3 << 28)
+#define CE_OP_RSA_4096	(4 << 28)
 
 /* Used in CE registers */
 #define CE_ERR_ALGO_NOTSUP	BIT(0)
@@ -135,10 +153,14 @@ struct ce_clock {
  *				bytes or words
  * @trng_t_dlen_in_bytes:	Does the request size for TRNG is in
  *				bytes or words
+ * @rsa_in_src:			Does RSA key/mod is stored in src SG
  * @ce_clks:	list of clocks needed by this variant
  * @esr:	The type of error register
  * @prng:	The CE_ALG_XXX value for the PRNG
  * @trng:	The CE_ALG_XXX value for the TRNG
+ * @maxrsakeysize:	The maximum size of RSA key supported
+ * @alg_akcipher:	list of supported akciphers
+ * @rsa_op_mode:	op_mode value for RSA keys
  */
 struct ce_variant {
 	char alg_cipher[CE_ID_CIPHER_MAX];
@@ -148,10 +170,14 @@ struct ce_variant {
 	bool hash_t_dlen_in_bits;
 	bool prng_t_dlen_in_bytes;
 	bool trng_t_dlen_in_bytes;
+	bool rsa_in_src;
 	struct ce_clock ce_clks[CE_MAX_CLOCKS];
 	int esr;
 	unsigned char prng;
 	unsigned char trng;
+	unsigned int maxrsakeysize;
+	char alg_akcipher[CE_ID_AKCIPHER_MAX];
+	u32 rsa_op_mode[CE_ID_RSA_MAX];
 };
 
 struct sginfo {
@@ -311,6 +337,38 @@ struct sun8i_ce_rng_tfm_ctx {
 };
 
 /*
+ * struct sun8i_rsa_req_ctx - context for an akcipher request
+ * @op_dir:	direction (encrypt vs decrypt) for this request
+ * @flow: 	the flow to use for this request
+ */
+struct sun8i_rsa_req_ctx {
+	u32 op_dir;
+	int flow;
+};
+
+/*
+ * struct sun8i_rsa_tfm_ctx - context for an akcipher TFM
+ * @enginectx:		crypto_engine used by this TFM
+ * @ss:			pointer to the private data of driver handling this TFM
+ * @raw_key:		raw key used by this TFM
+ * @fallback_tfm:	pointer to the fallback TFM
+ * @rsa_priv_key:	RSA private key used by this TFM
+ * @rsa_pub_key:	RSA public key used by this TFM
+ * @key_len:		key len of the RSA key used by this TFM
+ * @modulus:		pointer to the RSA modulus
+ */
+struct sun8i_rsa_tfm_ctx {
+	struct crypto_engine_ctx enginectx;
+	struct sun8i_ce_dev *ce;
+	struct rsa_key raw_key;
+	struct crypto_akcipher *fallback_tfm;
+	void *rsa_priv_key;
+	void *rsa_pub_key;
+	unsigned int key_len;
+	void *modulus;
+};
+
+/*
  * struct sun8i_ce_alg_template - crypto_alg template
  * @type:		the CRYPTO_ALG_TYPE for this template
  * @ce_algo_id:		the CE_ID for this template
@@ -331,6 +389,7 @@ struct sun8i_ce_alg_template {
 		struct skcipher_alg skcipher;
 		struct ahash_alg hash;
 		struct rng_alg rng;
+		struct akcipher_alg rsa;
 	} alg;
 #ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_DEBUG
 	unsigned long stat_req;
@@ -374,3 +433,17 @@ int sun8i_ce_prng_init(struct crypto_tfm *tfm);
 
 int sun8i_ce_hwrng_register(struct sun8i_ce_dev *ce);
 void sun8i_ce_hwrng_unregister(struct sun8i_ce_dev *ce);
+
+#ifdef CONFIG_CRYPTO_DEV_SUN8I_CE_RSA
+int sun8i_rsa_encrypt(struct akcipher_request *req);
+int sun8i_rsa_decrypt(struct akcipher_request *req);
+int sun8i_rsa_sign(struct akcipher_request *req);
+int sun8i_rsa_verify(struct akcipher_request *req);
+int sun8i_rsa_set_priv_key(struct crypto_akcipher *tfm, const void *key,
+			   unsigned int keylen);
+int sun8i_rsa_set_pub_key(struct crypto_akcipher *tfm, const void *key,
+			  unsigned int keylen);
+unsigned int sun8i_rsa_max_size(struct crypto_akcipher *tfm);
+int sun8i_rsa_init(struct crypto_akcipher *tfm);
+void sun8i_rsa_exit(struct crypto_akcipher *tfm);
+#endif
