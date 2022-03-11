@@ -14,9 +14,18 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/clk.h>
 #include <linux/crypto.h>
 #include <linux/reset.h>
+
+static const struct rk_variant rk3288_variant = {
+	.num_instance = 1
+};
+
+static const struct rk_variant rk3399_variant = {
+	.num_instance = 2
+};
 
 static int rk_crypto_enable_clk(struct rk_crypto_info *dev)
 {
@@ -82,19 +91,25 @@ static void rk_crypto_pm_exit(struct rk_crypto_info *rkdev)
 
 static irqreturn_t rk_crypto_irq_handle(int irq, void *dev_id)
 {
-	struct rk_crypto_info *dev  = platform_get_drvdata(dev_id);
+	struct rk_crypto_info *dev = platform_get_drvdata(dev_id);
+	void __iomem *reg;
 	u32 interrupt_status;
+	int i;
 
-	interrupt_status = CRYPTO_READ(dev, RK_CRYPTO_INTSTS);
-	CRYPTO_WRITE(dev, RK_CRYPTO_INTSTS, interrupt_status);
+	for (i = 0; i < dev->variant->num_instance; i++) {
+		if (dev->rki[i].irq != irq)
+			continue;
+		reg = dev->rki[i].reg;
+		interrupt_status = readl(reg + RK_CRYPTO_INTSTS);
+		writel(interrupt_status, reg + RK_CRYPTO_INTSTS);
 
-	dev->status = 1;
-	if (interrupt_status & 0x0a) {
-		dev_warn(dev->dev, "DMA Error\n");
-		dev->status = 0;
+		dev->rki[i].status = 1;
+		if (interrupt_status & 0x0a) {
+			dev->rki[i].status = 0;
+		}
+		complete(&dev->rki[i].complete);
+		return IRQ_HANDLED;
 	}
-	complete(&dev->complete);
-
 	return IRQ_HANDLED;
 }
 
@@ -152,6 +167,8 @@ static int rk_crypto_register(struct rk_crypto_info *crypto_info)
 
 	for (i = 0; i < ARRAY_SIZE(rk_cipher_algs); i++) {
 		rk_cipher_algs[i]->dev = crypto_info;
+
+
 		switch (rk_cipher_algs[i]->type) {
 		case CRYPTO_ALG_TYPE_SKCIPHER:
 			dev_info(crypto_info->dev, "Register %s as %s\n",
@@ -196,7 +213,12 @@ static void rk_crypto_unregister(void)
 }
 
 static const struct of_device_id crypto_of_id_table[] = {
-	{ .compatible = "rockchip,rk3288-crypto" },
+	{ .compatible = "rockchip,rk3288-crypto",
+	  .data = &rk3288_variant,
+	},
+	{ .compatible = "rockchip,rk3399-crypto",
+	  .data = &rk3399_variant,
+	},
 	{}
 };
 MODULE_DEVICE_TABLE(of, crypto_of_id_table);
@@ -206,6 +228,7 @@ static int rk_crypto_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct rk_crypto_info *crypto_info;
 	int err = 0;
+	int i;
 
 	crypto_info = devm_kzalloc(&pdev->dev,
 				   sizeof(*crypto_info), GFP_KERNEL);
@@ -214,47 +237,54 @@ static int rk_crypto_probe(struct platform_device *pdev)
 		goto err_crypto;
 	}
 
-	crypto_info->rst = devm_reset_control_get(dev, "crypto-rst");
+	crypto_info->variant = of_device_get_match_data(&pdev->dev);
+	if (!crypto_info->variant) {
+		dev_err(&pdev->dev, "Missing variant\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < crypto_info->variant->num_instance; i++) {
+		crypto_info->rki[i].reg = devm_platform_ioremap_resource(pdev, i);
+		if (IS_ERR(crypto_info->rki[i].reg)) {
+			err = PTR_ERR(crypto_info->rki[i].reg);
+			goto err_crypto;
+		}
+		crypto_info->rki[i].irq = platform_get_irq(pdev, i);
+		if (crypto_info->rki[i].irq < 0) {
+			dev_err(&pdev->dev, "control Interrupt is not available.\n");
+			err = crypto_info->rki[i].irq;
+			goto err_crypto;
+		}
+
+		err = devm_request_irq(&pdev->dev, crypto_info->rki[i].irq,
+				rk_crypto_irq_handle, IRQF_SHARED,
+				"rk-crypto", pdev);
+
+		if (err) {
+			dev_err(&pdev->dev, "irq request failed.\n");
+			goto err_crypto;
+		}
+		init_completion(&crypto_info->rki[i].complete);
+		crypto_info->rki[i].engine = crypto_engine_alloc_init(&pdev->dev, true);
+		crypto_engine_start(crypto_info->rki[i].engine);
+
+	}
+
+	crypto_info->rst = devm_reset_control_array_get_exclusive(dev);
 	if (IS_ERR(crypto_info->rst)) {
 		err = PTR_ERR(crypto_info->rst);
 		goto err_crypto;
 	}
 
-	crypto_info->reg = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(crypto_info->reg)) {
-		err = PTR_ERR(crypto_info->reg);
-		goto err_crypto;
-	}
-
 	crypto_info->num_clks = devm_clk_bulk_get_all(&pdev->dev,
-						      &crypto_info->clks);
+			&crypto_info->clks);
 	if (crypto_info->num_clks < 3) {
 		err = -EINVAL;
 		goto err_crypto;
 	}
 
-	crypto_info->irq = platform_get_irq(pdev, 0);
-	if (crypto_info->irq < 0) {
-		dev_err(&pdev->dev, "control Interrupt is not available.\n");
-		err = crypto_info->irq;
-		goto err_crypto;
-	}
-
-	err = devm_request_irq(&pdev->dev, crypto_info->irq,
-			       rk_crypto_irq_handle, IRQF_SHARED,
-			       "rk-crypto", pdev);
-
-	if (err) {
-		dev_err(&pdev->dev, "irq request failed.\n");
-		goto err_crypto;
-	}
-
 	crypto_info->dev = &pdev->dev;
 	platform_set_drvdata(pdev, crypto_info);
-
-	crypto_info->engine = crypto_engine_alloc_init(&pdev->dev, true);
-	crypto_engine_start(crypto_info->engine);
-	init_completion(&crypto_info->complete);
 
 	err = rk_crypto_pm_init(crypto_info);
 	if (err)
@@ -270,9 +300,9 @@ static int rk_crypto_probe(struct platform_device *pdev)
 	/* Ignore error of debugfs */
 	crypto_info->dbgfs_dir = debugfs_create_dir("rk3288_crypto", NULL);
 	crypto_info->dbgfs_stats = debugfs_create_file("stats", 0444,
-						       crypto_info->dbgfs_dir,
-						       crypto_info,
-						       &rk_crypto_debugfs_fops);
+			crypto_info->dbgfs_dir,
+			crypto_info,
+			&rk_crypto_debugfs_fops);
 #endif
 
 	dev_info(dev, "Crypto Accelerator successfully registered\n");
@@ -281,7 +311,8 @@ static int rk_crypto_probe(struct platform_device *pdev)
 err_register_alg:
 	rk_crypto_pm_exit(crypto_info);
 err_pm:
-	crypto_engine_exit(crypto_info->engine);
+	for (i = 0; i < crypto_info->variant->num_instance; i++)
+		crypto_engine_exit(crypto_info->rki[i].engine);
 err_crypto:
 	dev_err(dev, "Crypto Accelerator not successfully registered\n");
 	return err;
@@ -290,13 +321,15 @@ err_crypto:
 static int rk_crypto_remove(struct platform_device *pdev)
 {
 	struct rk_crypto_info *crypto_tmp = platform_get_drvdata(pdev);
+	int i;
 
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 	debugfs_remove_recursive(crypto_tmp->dbgfs_dir);
 #endif
 	rk_crypto_unregister();
 	rk_crypto_pm_exit(crypto_tmp);
-	crypto_engine_exit(crypto_tmp->engine);
+	for (i = 0; i < crypto_tmp->variant->num_instance; i++)
+		crypto_engine_exit(crypto_tmp->rki[i].engine);
 	return 0;
 }
 

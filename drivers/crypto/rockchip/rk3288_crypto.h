@@ -183,27 +183,37 @@
 #define RK_CRYPTO_HASH_DOUT_6		0x01a4
 #define RK_CRYPTO_HASH_DOUT_7		0x01a8
 
-#define CRYPTO_READ(dev, offset)		  \
-		readl_relaxed(((dev)->reg + (offset)))
-#define CRYPTO_WRITE(dev, offset, val)	  \
-		writel_relaxed((val), ((dev)->reg + (offset)))
+struct rk_variant {
+	int num_instance;
+};
+
+struct rk_instance {
+	void __iomem			*reg;
+	int				irq;
+	struct completion complete;
+	struct crypto_engine *engine;
+	int status;
+};
 
 struct rk_crypto_info {
 	struct device			*dev;
 	struct clk_bulk_data		*clks;
 	int num_clks;
 	struct reset_control		*rst;
-	void __iomem			*reg;
-	int				irq;
-
-	struct crypto_engine *engine;
-	struct completion complete;
-	int status;
+	struct rk_instance rki[2];
+	int numinst;
+	const struct rk_variant *variant;
+	atomic_t flow;
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 	struct dentry *dbgfs_dir;
 	struct dentry *dbgfs_stats;
 #endif
 };
+
+static inline int rk_get_engine_number(struct rk_crypto_info *rk)
+{
+	return atomic_inc_return(&rk->flow) % rk->variant->num_instance;
+}
 
 /* the private variable of hash */
 struct rk_ahash_ctx {
@@ -218,6 +228,7 @@ struct rk_ahash_rctx {
 	struct ahash_request		fallback_req;
 	u32				mode;
 	int nrsg;
+	int ninst;
 };
 
 /* the private variable of cipher */
@@ -233,6 +244,7 @@ struct rk_cipher_ctx {
 struct rk_cipher_rctx {
 	u8 backup_iv[AES_BLOCK_SIZE];
 	u32				mode;
+	int ninst;
 	struct skcipher_request fallback_req;   // keep at the end
 };
 

@@ -95,10 +95,14 @@ static int rk_cipher_fallback(struct skcipher_request *areq)
 static int rk_handle_req(struct rk_crypto_info *dev,
 			 struct skcipher_request *req)
 {
-	struct crypto_engine *engine = dev->engine;
+	struct rk_cipher_rctx *rctx = skcipher_request_ctx(req);
+	struct crypto_engine *engine;
 
 	if (rk_cipher_need_fallback(req))
 		return rk_cipher_fallback(req);
+
+	rctx->ninst = rk_get_engine_number(dev);
+	engine = dev->rki[rctx->ninst].engine;
 
 	return crypto_transfer_skcipher_request_to_engine(engine, req);
 }
@@ -290,6 +294,7 @@ static void rk_ablk_hw_init(struct rk_crypto_info *dev, struct skcipher_request 
 	struct rk_cipher_rctx *rctx = skcipher_request_ctx(req);
 	struct rk_cipher_ctx *ctx = crypto_skcipher_ctx(cipher);
 	u32 block, conf_reg = 0;
+	void __iomem *reg = dev->rki[rctx->ninst].reg;
 
 	block = crypto_tfm_alg_blocksize(tfm);
 
@@ -297,8 +302,8 @@ static void rk_ablk_hw_init(struct rk_crypto_info *dev, struct skcipher_request 
 		rctx->mode |= RK_CRYPTO_TDES_FIFO_MODE |
 			     RK_CRYPTO_TDES_BYTESWAP_KEY |
 			     RK_CRYPTO_TDES_BYTESWAP_IV;
-		CRYPTO_WRITE(dev, RK_CRYPTO_TDES_CTRL, rctx->mode);
-		memcpy_toio(ctx->dev->reg + RK_CRYPTO_TDES_KEY1_0, ctx->key, ctx->keylen);
+		writel(rctx->mode, reg + RK_CRYPTO_TDES_CTRL);
+		memcpy_toio(reg + RK_CRYPTO_TDES_KEY1_0, ctx->key, ctx->keylen);
 		conf_reg = RK_CRYPTO_DESSEL;
 	} else {
 		rctx->mode |= RK_CRYPTO_AES_FIFO_MODE |
@@ -309,25 +314,27 @@ static void rk_ablk_hw_init(struct rk_crypto_info *dev, struct skcipher_request 
 			rctx->mode |= RK_CRYPTO_AES_192BIT_key;
 		else if (ctx->keylen == AES_KEYSIZE_256)
 			rctx->mode |= RK_CRYPTO_AES_256BIT_key;
-		CRYPTO_WRITE(dev, RK_CRYPTO_AES_CTRL, rctx->mode);
-		memcpy_toio(ctx->dev->reg + RK_CRYPTO_AES_KEY_0, ctx->key, ctx->keylen);
+		writel(rctx->mode, reg + RK_CRYPTO_AES_CTRL);
+		memcpy_toio(reg + RK_CRYPTO_AES_KEY_0, ctx->key, ctx->keylen);
 	}
 	conf_reg |= RK_CRYPTO_BYTESWAP_BTFIFO |
 		    RK_CRYPTO_BYTESWAP_BRFIFO;
-	CRYPTO_WRITE(dev, RK_CRYPTO_CONF, conf_reg);
-	CRYPTO_WRITE(dev, RK_CRYPTO_INTENA,
-		     RK_CRYPTO_BCDMA_ERR_ENA | RK_CRYPTO_BCDMA_DONE_ENA);
+	writel(conf_reg, reg + RK_CRYPTO_CONF);
+	writel(RK_CRYPTO_BCDMA_ERR_ENA | RK_CRYPTO_BCDMA_DONE_ENA,
+	       reg + RK_CRYPTO_INTENA);
 }
 
-static void crypto_dma_start(struct rk_crypto_info *dev,
+static void crypto_dma_start(struct rk_crypto_info *dev, int ninst,
 			     struct scatterlist *sgs,
 			     struct scatterlist *sgd, unsigned int todo)
 {
-	CRYPTO_WRITE(dev, RK_CRYPTO_BRDMAS, sg_dma_address(sgs));
-	CRYPTO_WRITE(dev, RK_CRYPTO_BRDMAL, todo);
-	CRYPTO_WRITE(dev, RK_CRYPTO_BTDMAS, sg_dma_address(sgd));
-	CRYPTO_WRITE(dev, RK_CRYPTO_CTRL, RK_CRYPTO_BLOCK_START |
-		     _SBF(RK_CRYPTO_BLOCK_START, 16));
+	void __iomem *reg = dev->rki[ninst].reg;
+
+	writel(sg_dma_address(sgs), reg + RK_CRYPTO_BRDMAS);
+	writel(todo, reg + RK_CRYPTO_BRDMAL);
+	writel(sg_dma_address(sgd), reg + RK_CRYPTO_BTDMAS);
+	writel(RK_CRYPTO_BLOCK_START | _SBF(RK_CRYPTO_BLOCK_START, 16),
+	       reg + RK_CRYPTO_CTRL);
 }
 
 static int rk_cipher_run(struct crypto_engine *engine, void *async_req)
@@ -348,6 +355,8 @@ static int rk_cipher_run(struct crypto_engine *engine, void *async_req)
 	unsigned int todo;
 	struct skcipher_alg *alg = crypto_skcipher_alg(tfm);
 	struct rk_crypto_tmp *algt = container_of(alg, struct rk_crypto_tmp, alg.skcipher);
+	struct rk_instance *rki = &ctx->dev->rki[rctx->ninst];
+	void __iomem *reg = ctx->dev->rki[rctx->ninst].reg;
 
 	algt->stat_req++;
 
@@ -396,19 +405,19 @@ static int rk_cipher_run(struct crypto_engine *engine, void *async_req)
 		rk_ablk_hw_init(ctx->dev, areq);
 		if (ivsize) {
 			if (ivsize == DES_BLOCK_SIZE)
-				memcpy_toio(ctx->dev->reg + RK_CRYPTO_TDES_IV_0, ivtouse, ivsize);
+				memcpy_toio(reg + RK_CRYPTO_TDES_IV_0, ivtouse, ivsize);
 			else
-				memcpy_toio(ctx->dev->reg + RK_CRYPTO_AES_IV_0, ivtouse, ivsize);
+				memcpy_toio(reg + RK_CRYPTO_AES_IV_0, ivtouse, ivsize);
 		}
-		reinit_completion(&ctx->dev->complete);
-		ctx->dev->status = 0;
+		reinit_completion(&rki->complete);
+		rki->status = 0;
 
 		todo = min(sg_dma_len(sgs), len);
 		len -= todo;
-		crypto_dma_start(ctx->dev, sgs, sgd, todo / 4);
-		wait_for_completion_interruptible_timeout(&ctx->dev->complete,
+		crypto_dma_start(ctx->dev, 0, sgs, sgd, todo / 4);
+		wait_for_completion_interruptible_timeout(&rki->complete,
 							  msecs_to_jiffies(2000));
-		if (!ctx->dev->status) {
+		if (!rki->status) {
 			dev_err(ctx->dev->dev, "DMA timeout\n");
 			err = -EFAULT;
 			goto theend;
