@@ -293,7 +293,7 @@ static int rk_hash_run(struct crypto_engine *engine, void *breq)
 	while (sg) {
 		reinit_completion(&rki->complete);
 		rki->status = 0;
-		crypto_ahash_dma_start(tctx->dev, 0, sg);
+		crypto_ahash_dma_start(tctx->dev, rctx->ninst, sg);
 		wait_for_completion_interruptible_timeout(&rki->complete,
 							  msecs_to_jiffies(2000));
 		if (!rki->status) {

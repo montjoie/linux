@@ -110,6 +110,7 @@ static irqreturn_t rk_crypto_irq_handle(int irq, void *dev_id)
 		complete(&dev->rki[i].complete);
 		return IRQ_HANDLED;
 	}
+	dev_err(dev->dev, "unknow IRQ\n");
 	return IRQ_HANDLED;
 }
 
@@ -255,6 +256,7 @@ static int rk_crypto_probe(struct platform_device *pdev)
 			err = crypto_info->rki[i].irq;
 			goto err_crypto;
 		}
+		dev_info(&pdev->dev, "Grab IRQ %d for instance %d\n", crypto_info->rki[i].irq, i);
 
 		err = devm_request_irq(&pdev->dev, crypto_info->rki[i].irq,
 				rk_crypto_irq_handle, IRQF_SHARED,

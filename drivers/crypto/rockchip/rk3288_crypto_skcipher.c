@@ -414,7 +414,7 @@ static int rk_cipher_run(struct crypto_engine *engine, void *async_req)
 
 		todo = min(sg_dma_len(sgs), len);
 		len -= todo;
-		crypto_dma_start(ctx->dev, 0, sgs, sgd, todo / 4);
+		crypto_dma_start(ctx->dev, rctx->ninst, sgs, sgd, todo / 4);
 		wait_for_completion_interruptible_timeout(&rki->complete,
 							  msecs_to_jiffies(2000));
 		if (!rki->status) {
