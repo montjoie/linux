@@ -188,6 +188,11 @@
 #define CRYPTO_WRITE(dev, offset, val)	  \
 		writel_relaxed((val), ((dev)->reg + (offset)))
 
+struct rk_variant {
+	bool main;
+	bool sub;
+};
+
 struct rk_crypto_info {
 	struct device			*dev;
 	struct clk_bulk_data		*clks;
@@ -195,10 +200,13 @@ struct rk_crypto_info {
 	struct reset_control		*rst;
 	void __iomem			*reg;
 	int				irq;
-
+	const struct rk_variant *variant;
+	struct rk_crypto_info *sub;
+	atomic_t flow;
 	struct crypto_engine *engine;
 	struct completion complete;
 	int status;
+	unsigned long nreq;
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 	struct dentry *dbgfs_dir;
 	struct dentry *dbgfs_stats;

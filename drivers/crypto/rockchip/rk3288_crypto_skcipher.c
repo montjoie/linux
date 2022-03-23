@@ -100,6 +100,8 @@ static int rk_handle_req(struct rk_crypto_info *dev,
 	if (rk_cipher_need_fallback(req))
 		return rk_cipher_fallback(req);
 
+	if (dev->sub && atomic_inc_return(&dev->flow) % 2)
+		return crypto_transfer_skcipher_request_to_engine(dev->sub->engine, req);
 	return crypto_transfer_skcipher_request_to_engine(engine, req);
 }
 
@@ -350,6 +352,7 @@ static int rk_cipher_run(struct crypto_engine *engine, void *async_req)
 	struct rk_crypto_tmp *algt = container_of(alg, struct rk_crypto_tmp, alg.skcipher);
 
 	algt->stat_req++;
+	ctx->dev->nreq++;
 
 	ivsize = crypto_skcipher_ivsize(tfm);
 	if (areq->iv && crypto_skcipher_ivsize(tfm) > 0) {
@@ -487,6 +490,8 @@ static int rk_ablk_init_tfm(struct crypto_skcipher *tfm)
 	err = pm_runtime_resume_and_get(ctx->dev->dev);
 	if (err < 0)
 		goto error_pm;
+	if (ctx->dev->sub)
+		err = pm_runtime_resume_and_get(ctx->dev->sub->dev);
 
 	return 0;
 error_pm:
@@ -501,6 +506,8 @@ static void rk_ablk_exit_tfm(struct crypto_skcipher *tfm)
 	memzero_explicit(ctx->key, ctx->keylen);
 	crypto_free_skcipher(ctx->fallback_tfm);
 	pm_runtime_put_autosuspend(ctx->dev->dev);
+	if (ctx->dev->sub)
+		pm_runtime_put_autosuspend(ctx->dev->sub->dev);
 }
 
 struct rk_crypto_tmp rk_ecb_aes_alg = {

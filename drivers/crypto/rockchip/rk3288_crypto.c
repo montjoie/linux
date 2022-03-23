@@ -14,9 +14,28 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/clk.h>
 #include <linux/crypto.h>
 #include <linux/reset.h>
+
+static struct rk_crypto_info *main;
+
+static const struct rk_variant rk3288_variant = {
+	.main = true,
+};
+
+static const struct rk_variant rk3328_variant = {
+	.main = true,
+};
+
+static const struct rk_variant rk3399_variant0 = {
+	.main = true,
+};
+
+static const struct rk_variant rk3399_variant1 = {
+	.sub = true,
+};
 
 static int rk_crypto_enable_clk(struct rk_crypto_info *dev)
 {
@@ -113,7 +132,13 @@ static struct rk_crypto_tmp *rk_cipher_algs[] = {
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 static int rk_crypto_debugfs_show(struct seq_file *seq, void *v)
 {
+	struct rk_crypto_info *rk = seq->private;
 	unsigned int i;
+
+	if (rk->sub) {
+		seq_printf(seq, "Main device requests: %lu\n", rk->nreq);
+		seq_printf(seq, "Sub-device requests: %lu\n", rk->sub->nreq);
+	}
 
 	for (i = 0; i < ARRAY_SIZE(rk_cipher_algs); i++) {
 		if (!rk_cipher_algs[i]->dev)
@@ -150,6 +175,11 @@ static int rk_crypto_register(struct rk_crypto_info *crypto_info)
 	unsigned int i, k;
 	int err = 0;
 
+	if (!crypto_info->variant->main) {
+		dev_info(crypto_info->dev, "We are not main, do not register algos\n");
+		return 0;
+	}
+
 	for (i = 0; i < ARRAY_SIZE(rk_cipher_algs); i++) {
 		rk_cipher_algs[i]->dev = crypto_info;
 		switch (rk_cipher_algs[i]->type) {
@@ -183,9 +213,14 @@ err_cipher_algs:
 	return err;
 }
 
-static void rk_crypto_unregister(void)
+static void rk_crypto_unregister(struct rk_crypto_info *crypto_info)
 {
 	unsigned int i;
+
+	if (!crypto_info->variant->main) {
+		dev_info(crypto_info->dev, "We are not main, do not unregister algos\n");
+		return;
+	}
 
 	for (i = 0; i < ARRAY_SIZE(rk_cipher_algs); i++) {
 		if (rk_cipher_algs[i]->type == CRYPTO_ALG_TYPE_SKCIPHER)
@@ -196,8 +231,18 @@ static void rk_crypto_unregister(void)
 }
 
 static const struct of_device_id crypto_of_id_table[] = {
-	{ .compatible = "rockchip,rk3288-crypto" },
-	{ .compatible = "rockchip,rk3328-crypto" },
+	{ .compatible = "rockchip,rk3288-crypto",
+	  .data = &rk3288_variant,
+	},
+	{ .compatible = "rockchip,rk3328-crypto",
+	  .data = &rk3328_variant,
+	},
+	{ .compatible = "rockchip,rk3399-crypto0",
+	  .data = &rk3399_variant0,
+	},
+	{ .compatible = "rockchip,rk3399-crypto1",
+	  .data = &rk3399_variant1,
+	},
 	{}
 };
 MODULE_DEVICE_TABLE(of, crypto_of_id_table);
@@ -215,7 +260,18 @@ static int rk_crypto_probe(struct platform_device *pdev)
 		goto err_crypto;
 	}
 
-	crypto_info->rst = devm_reset_control_get(dev, "crypto-rst");
+	crypto_info->variant = of_device_get_match_data(&pdev->dev);
+	if (!crypto_info->variant) {
+		dev_err(&pdev->dev, "Missing variant\n");
+		return -EINVAL;
+	}
+
+	if (crypto_info->variant->sub && !main) {
+		dev_info(&pdev->dev, "Main is not here yet\n");
+		return -EPROBE_DEFER;
+	}
+
+	crypto_info->rst = devm_reset_control_array_get_exclusive(dev);
 	if (IS_ERR(crypto_info->rst)) {
 		err = PTR_ERR(crypto_info->rst);
 		goto err_crypto;
@@ -269,12 +325,19 @@ static int rk_crypto_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 	/* Ignore error of debugfs */
-	crypto_info->dbgfs_dir = debugfs_create_dir("rk3288_crypto", NULL);
-	crypto_info->dbgfs_stats = debugfs_create_file("stats", 0444,
-						       crypto_info->dbgfs_dir,
-						       crypto_info,
-						       &rk_crypto_debugfs_fops);
+	if (crypto_info->variant->main) {
+		crypto_info->dbgfs_dir = debugfs_create_dir("rk3288_crypto", NULL);
+		crypto_info->dbgfs_stats = debugfs_create_file("stats", 0444,
+							       crypto_info->dbgfs_dir,
+							       crypto_info,
+							       &rk_crypto_debugfs_fops);
+	}
 #endif
+
+	if (crypto_info->variant->main)
+		main = crypto_info;
+	else
+		main->sub = crypto_info;
 
 	dev_info(dev, "Crypto Accelerator successfully registered\n");
 	return 0;
@@ -295,7 +358,7 @@ static int rk_crypto_remove(struct platform_device *pdev)
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 	debugfs_remove_recursive(crypto_tmp->dbgfs_dir);
 #endif
-	rk_crypto_unregister();
+	rk_crypto_unregister(crypto_tmp);
 	rk_crypto_pm_exit(crypto_tmp);
 	crypto_engine_exit(crypto_tmp->engine);
 	return 0;
