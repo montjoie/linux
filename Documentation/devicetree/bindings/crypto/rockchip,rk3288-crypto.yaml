@@ -11,8 +11,18 @@ maintainers:
 
 properties:
   compatible:
-    enum:
-      - rockchip,rk3288-crypto
+    oneOf:
+      - description: crypto IP present on RK3288 SoCs
+        items:
+          - const: rockchip,rk3288-crypto
+      - description: crypto IP present on RK3328 SoCs
+        items:
+          - const: rockchip,rk3328-crypto
+      - description: crypto IPs present on RK3399. crypto0 is the first IP with
+                     RSA support, crypto1 is the second IP without RSA.
+        enum:
+          - rockchip,rk3399-crypto0
+          - rockchip,rk3399-crypto1
 
   reg:
     maxItems: 1
@@ -21,16 +31,46 @@ properties:
     maxItems: 1
 
   clocks:
+    minItems: 3
     maxItems: 4
 
   clock-names:
+    minItems: 3
     maxItems: 4
 
   resets:
-    maxItems: 1
+    minItems: 1
+    maxItems: 3
 
   reset-names:
-    maxItems: 1
+    deprecated: true
+
+allOf:
+  - if:
+      not:
+        properties:
+          compatible:
+            contains:
+              const: rockchip,rk3288-crypto
+    then:
+      properties:
+        clocks:
+          minItems: 3
+
+        clock-names:
+          minItems: 3
+  - if:
+      not:
+        properties:
+          compatible:
+            contains:
+              enum:
+                - rockchip,rk3399-crypto0
+                - rockchip,rk3399-crypto1
+    then:
+      properties:
+        resets:
+          minItems: 1
 
 required:
   - compatible
@@ -39,7 +79,6 @@ required:
   - clocks
   - clock-names
   - resets
-  - reset-names
 
 additionalProperties: false
 
