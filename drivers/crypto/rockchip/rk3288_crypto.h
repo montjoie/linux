@@ -206,6 +206,7 @@ struct rk_crypto_info {
 	struct crypto_engine *engine;
 	struct completion complete;
 	int status;
+	unsigned long total;
 	unsigned long nreq;
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 	struct dentry *dbgfs_dir;

@@ -92,15 +92,29 @@ static int rk_cipher_fallback(struct skcipher_request *areq)
 	return err;
 }
 
+static int dbglog;
+
 static int rk_handle_req(struct rk_crypto_info *dev,
 			 struct skcipher_request *req)
 {
 	struct crypto_engine *engine = dev->engine;
+	bool usesub;
+
 
 	if (rk_cipher_need_fallback(req))
 		return rk_cipher_fallback(req);
 
-	if (dev->sub && atomic_inc_return(&dev->flow) % 2)
+	dev->total++;
+	usesub = atomic_inc_return(&dev->flow) % 2;
+
+	if (dbglog++ < 20) {
+		if (usesub)
+			dev_info(dev->dev, "%s flow=%d usesub=%d true\n", __func__, dev->flow, usesub);
+		else
+			dev_info(dev->dev, "%s flow=%d usesub=%d false\n", __func__, dev->flow, usesub);
+	}
+
+	if (dev->sub && usesub)
 		return crypto_transfer_skcipher_request_to_engine(dev->sub->engine, req);
 	return crypto_transfer_skcipher_request_to_engine(engine, req);
 }

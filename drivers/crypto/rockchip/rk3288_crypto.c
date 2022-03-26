@@ -136,6 +136,7 @@ static int rk_crypto_debugfs_show(struct seq_file *seq, void *v)
 	unsigned int i;
 
 	if (rk->sub) {
+		seq_printf(seq, "Total requests: %lu\n", rk->total);
 		seq_printf(seq, "Main device requests: %lu\n", rk->nreq);
 		seq_printf(seq, "Sub-device requests: %lu\n", rk->sub->nreq);
 	}
@@ -326,6 +327,7 @@ static int rk_crypto_probe(struct platform_device *pdev)
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 	/* Ignore error of debugfs */
 	if (crypto_info->variant->main) {
+		dev_info(dev, "Register debugfs\n");
 		crypto_info->dbgfs_dir = debugfs_create_dir("rk3288_crypto", NULL);
 		crypto_info->dbgfs_stats = debugfs_create_file("stats", 0444,
 							       crypto_info->dbgfs_dir,
@@ -334,12 +336,14 @@ static int rk_crypto_probe(struct platform_device *pdev)
 	}
 #endif
 
-	if (crypto_info->variant->main)
+	if (crypto_info->variant->main) {
+		dev_info(dev, "Crypto Accelerator main successfully registered\n");
 		main = crypto_info;
-	else
+	} else {
+		dev_info(dev, "Crypto Accelerator sub successfully registered\n");
 		main->sub = crypto_info;
+	}
 
-	dev_info(dev, "Crypto Accelerator successfully registered\n");
 	return 0;
 
 err_register_alg:
