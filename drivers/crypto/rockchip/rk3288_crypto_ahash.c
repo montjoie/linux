@@ -78,12 +78,11 @@ static int zero_message_process(struct ahash_request *req)
 	return 0;
 }
 
-static void rk_ahash_reg_init(struct ahash_request *req)
+static void rk_ahash_reg_init(struct ahash_request *req,
+			      struct rk_crypto_info *dev)
 {
 	struct rk_ahash_rctx *rctx = ahash_request_ctx(req);
 	struct crypto_ahash *tfm = crypto_ahash_reqtfm(req);
-	struct rk_ahash_ctx *tctx = crypto_ahash_ctx(tfm);
-	struct rk_crypto_info *dev = tctx->main;
 	int reg_status;
 
 	reg_status = CRYPTO_READ(dev, RK_CRYPTO_CTRL) |
@@ -203,6 +202,7 @@ static int rk_ahash_digest(struct ahash_request *req)
 	struct rk_ahash_rctx *rctx = ahash_request_ctx(req);
 	struct rk_ahash_ctx *tctx = crypto_tfm_ctx(req->base.tfm);
 	struct rk_crypto_info *dev = tctx->main;
+	struct crypto_engine *engine;
 
 	if (rk_ahash_need_fallback(req))
 		return rk_ahash_digest_fb(req);
@@ -210,9 +210,13 @@ static int rk_ahash_digest(struct ahash_request *req)
 	if (!req->nbytes)
 		return zero_message_process(req);
 
-	rctx->dev = dev;
+	if (dev->sub && atomic_inc_return(&dev->flow) % 2)
+		dev = dev->sub;
 
-	return crypto_transfer_hash_request_to_engine(dev->engine, req);
+	rctx->dev = dev;
+	engine = dev->engine;
+
+	return crypto_transfer_hash_request_to_engine(engine, req);
 }
 
 static void crypto_ahash_dma_start(struct rk_crypto_info *dev, struct scatterlist *sg)
@@ -270,6 +274,7 @@ static int rk_hash_run(struct crypto_engine *engine, void *breq)
 	rctx->mode = 0;
 
 	algt->stat_req++;
+	rkc->nreq++;
 
 	switch (crypto_ahash_digestsize(tfm)) {
 	case SHA1_DIGEST_SIZE:
@@ -286,7 +291,7 @@ static int rk_hash_run(struct crypto_engine *engine, void *breq)
 		goto theend;
 	}
 
-	rk_ahash_reg_init(areq);
+	rk_ahash_reg_init(areq, rkc);
 
 	while (sg) {
 		reinit_completion(&rkc->complete);
@@ -360,6 +365,10 @@ static int rk_cra_hash_init(struct crypto_tfm *tfm)
 	err = pm_runtime_resume_and_get(tctx->main->dev);
 	if (err < 0)
 		goto error_pm;
+	if (tctx->main->sub)
+		err = pm_runtime_resume_and_get(tctx->main->sub->dev);
+	if (err < 0)
+		goto error_pm;
 
 	return 0;
 error_pm:
@@ -374,6 +383,8 @@ static void rk_cra_hash_exit(struct crypto_tfm *tfm)
 
 	crypto_free_ahash(tctx->fallback_tfm);
 	pm_runtime_put_autosuspend(tctx->main->dev);
+	if (tctx->main->sub)
+		pm_runtime_put_autosuspend(tctx->main->sub->dev);
 }
 
 struct rk_crypto_tmp rk_ahash_sha1 = {
