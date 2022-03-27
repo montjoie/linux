@@ -98,11 +98,15 @@ static int rk_cipher_handle_req(struct skcipher_request *req)
 	struct rk_cipher_ctx *tctx = crypto_skcipher_ctx(tfm);
 	struct rk_cipher_rctx *rctx = skcipher_request_ctx(req);
 	struct rk_crypto_info *rkc = tctx->main;
-	struct crypto_engine *engine = rkc->engine;
+	struct crypto_engine *engine;
 
 	if (rk_cipher_need_fallback(req))
 		return rk_cipher_fallback(req);
 
+	if (rkc->sub && atomic_inc_return(&rkc->flow) % 2)
+		rkc = rkc->sub;
+
+	engine = rkc->engine;
 	rctx->dev = rkc;
 
 	return crypto_transfer_skcipher_request_to_engine(engine, req);
@@ -319,6 +323,7 @@ static int rk_cipher_run(struct crypto_engine *engine, void *async_req)
 	struct rk_crypto_info *rkc = rctx->dev;
 
 	algt->stat_req++;
+	rkc->nreq++;
 
 	ivsize = crypto_skcipher_ivsize(tfm);
 	if (areq->iv && crypto_skcipher_ivsize(tfm) > 0) {
@@ -456,6 +461,10 @@ static int rk_cipher_tfm_init(struct crypto_skcipher *tfm)
 	err = pm_runtime_resume_and_get(ctx->main->dev);
 	if (err < 0)
 		goto error_pm;
+	if (ctx->main->sub)
+		err = pm_runtime_resume_and_get(ctx->main->sub->dev);
+	if (err < 0)
+		goto error_pm;
 
 	return 0;
 error_pm:
@@ -470,6 +479,8 @@ static void rk_cipher_tfm_exit(struct crypto_skcipher *tfm)
 	memzero_explicit(ctx->key, ctx->keylen);
 	crypto_free_skcipher(ctx->fallback_tfm);
 	pm_runtime_put_autosuspend(ctx->main->dev);
+	if (ctx->main->sub)
+		pm_runtime_put_autosuspend(ctx->main->sub->dev);
 }
 
 struct rk_crypto_tmp rk_ecb_aes_alg = {
