@@ -208,7 +208,7 @@ struct rk_crypto_info {
 /* the private variable of hash */
 struct rk_ahash_ctx {
 	struct crypto_engine_ctx enginectx;
-	struct rk_crypto_info		*dev;
+	struct rk_crypto_info		*main;
 	/* for fallback */
 	struct crypto_ahash		*fallback_tfm;
 };
@@ -223,7 +223,7 @@ struct rk_ahash_rctx {
 /* the private variable of cipher */
 struct rk_cipher_ctx {
 	struct crypto_engine_ctx enginectx;
-	struct rk_crypto_info		*dev;
+	struct rk_crypto_info		*main;
 	unsigned int			keylen;
 	u32 key[AES_MAX_KEY_SIZE / 4];
 	u8				iv[AES_BLOCK_SIZE];
