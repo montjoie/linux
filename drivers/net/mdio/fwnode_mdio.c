@@ -11,6 +11,7 @@
 #include <linux/of.h>
 #include <linux/phy.h>
 #include <linux/pse-pd/pse.h>
+#include <linux/regulator/consumer.h>
 
 MODULE_AUTHOR("Calvin Johnson <calvin.johnson@oss.nxp.com>");
 MODULE_LICENSE("GPL");
@@ -117,7 +118,9 @@ int fwnode_mdiobus_register_phy(struct mii_bus *bus,
 	struct phy_device *phy;
 	bool is_c45;
 	u32 phy_id;
-	int rc;
+	struct device_node __maybe_unused *nchild = NULL;
+	struct regulator_bulk_data *consumers = NULL;
+	int rc, reg_cnt = 0;
 
 	psec = fwnode_find_pse_control(child);
 	if (IS_ERR(psec))
@@ -129,6 +132,25 @@ int fwnode_mdiobus_register_phy(struct mii_bus *bus,
 		goto clean_pse;
 	}
 
+	for_each_child_of_node(bus->dev.of_node, nchild) {
+		u32 reg;
+
+		of_property_read_u32(nchild, "reg", &reg);
+		if (reg != addr)
+			continue;
+		reg_cnt = of_regulator_bulk_get_all(&bus->dev, nchild, &consumers);
+		if (reg_cnt > 0) {
+			rc = regulator_bulk_enable(reg_cnt, consumers);
+			if (rc)
+				goto clean_kfree;
+		}
+		if (reg_cnt < 0) {
+			dev_err(&bus->dev, "Fail to regulator_bulk_get_all err=%d\n", reg_cnt);
+			rc = reg_cnt;
+			goto clean_kfree;
+		}
+	}
+
 	is_c45 = fwnode_device_is_compatible(child, "ethernet-phy-ieee802.3-c45");
 	if (is_c45 || fwnode_get_phy_id(child, &phy_id))
 		phy = get_phy_device(bus, addr, is_c45);
@@ -138,6 +160,9 @@ int fwnode_mdiobus_register_phy(struct mii_bus *bus,
 		rc = PTR_ERR(phy);
 		goto clean_mii_ts;
 	}
+
+	phy->regulator_cnt = reg_cnt;
+	phy->consumers = consumers;
 
 	if (is_acpi_node(child)) {
 		phy->irq = bus->irq[addr];
@@ -178,6 +203,10 @@ clean_mii_ts:
 clean_pse:
 	pse_control_put(psec);
 
+	if (reg_cnt > 0)
+		regulator_bulk_disable(reg_cnt, consumers);
+clean_kfree:
+	kfree(consumers);
 	return rc;
 }
 EXPORT_SYMBOL(fwnode_mdiobus_register_phy);

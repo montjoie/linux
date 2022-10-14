@@ -30,6 +30,7 @@
 #include <linux/phy_led_triggers.h>
 #include <linux/pse-pd/pse.h>
 #include <linux/property.h>
+#include <linux/regulator/consumer.h>
 #include <linux/sfp.h>
 #include <linux/skbuff.h>
 #include <linux/slab.h>
@@ -1872,6 +1873,9 @@ int phy_suspend(struct phy_device *phydev)
 	if (!ret)
 		phydev->suspended = true;
 
+	if (phydev->regulator_cnt > 0)
+		regulator_bulk_disable(phydev->regulator_cnt, phydev->consumers);
+
 	return ret;
 }
 EXPORT_SYMBOL(phy_suspend);
@@ -1897,6 +1901,12 @@ EXPORT_SYMBOL(__phy_resume);
 int phy_resume(struct phy_device *phydev)
 {
 	int ret;
+
+	if (phydev->regulator_cnt > 0) {
+		ret = regulator_bulk_enable(phydev->regulator_cnt, phydev->consumers);
+		if (ret)
+			return ret;
+	}
 
 	mutex_lock(&phydev->lock);
 	ret = __phy_resume(phydev);
@@ -3330,6 +3340,9 @@ static int phy_remove(struct device *dev)
 	phy_device_reset(phydev, 1);
 
 	phydev->drv = NULL;
+
+	if (phydev->consumers)
+		kfree(phydev->consumers);
 
 	return 0;
 }
