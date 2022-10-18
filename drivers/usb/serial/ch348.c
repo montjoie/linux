@@ -59,19 +59,32 @@
 #define R_II_B2		0x02
 #define R_II_B3		0x00
 
-#define CH348_RX_PORTNUM_OFF		0
-#define CH348_RX_LENGTH_OFF		1
-#define CH348_RX_DATA_OFF		2
+struct ch348_rxbuf {
+	u8 port;
+	u8 length;
+	u8 data[];
+} __packed;
 
 #define CH348_RX_PORT_CHUNK_LENGTH	32
 #define CH348_RX_PORT_MAX_LENGTH	30
 
-#define CH348_TX_PORTNUM_OFF		0
-#define CH348_TX_LENGTH0_OFF		1
-#define CH348_TX_LENGTH1_OFF		2
-#define CH348_TX_DATA_OFF		3
+struct ch348_txbuf {
+	u8 port;
+	__le16 length;
+	u8 data[];
+} __packed;
 
-#define CH348_INIT_BUFLEN		12
+struct ch348_initbuf {
+	u8 cmd;
+	u8 reg;
+	u8 port;
+	__be32 dwDTERate;
+	u8 bCharFormat;
+	u8 bParityType;
+	u8 bDataBits;
+	u8 rate;
+	u8 unk;
+} __packed;
 
 #define CH348_MAXPORT 8
 
@@ -132,15 +145,21 @@ struct ch348 {
 	int writesize;
 };
 
+struct ch348_magic {
+	u8 action;
+	u8 reg;
+	u8 control;
+} __packed;
+
 /* Some values came from vendor tree, and we have no meaning for them, this
  * function simply use them.
  */
 static int ch348_do_magic(struct ch348 *ch348, int portnum, u8 action, u8 reg, u8 control)
 {
 	int ret = 0, len;
-	u8 *buffer;
+	struct ch348_magic *buffer;
 
-	buffer = kzalloc(3, GFP_KERNEL);
+	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
 	if (!buffer)
 		return -ENOMEM;
 
@@ -149,9 +168,9 @@ static int ch348_do_magic(struct ch348 *ch348, int portnum, u8 action, u8 reg, u
 	else
 		reg += 0x10 * (portnum - 4) + 0x08;
 
-	buffer[0] = action;
-	buffer[1] = reg;
-	buffer[2] = control;
+	buffer->action = action;
+	buffer->reg = reg;
+	buffer->control = control;
 
 	ret = usb_bulk_msg(ch348->udev, ch348->cmdtx_endpoint, buffer, 3, &len,
 			   DEFAULT_TIMEOUT);
@@ -179,6 +198,7 @@ static void ch348_process_read_urb(struct urb *urb)
 	struct ch348 *ch348 = usb_get_serial_data(port->serial);
 	u8 *buffer = urb->transfer_buffer, *end;
 	unsigned int portnum, usblen;
+	struct ch348_rxbuf *rxb;
 
 	if (!urb->actual_length) {
 		dev_warn(&port->dev, "%s:%d empty rx buffer\n", __func__, __LINE__);
@@ -188,14 +208,15 @@ static void ch348_process_read_urb(struct urb *urb)
 	end = buffer + urb->actual_length;
 
 	for (; buffer < end; buffer += CH348_RX_PORT_CHUNK_LENGTH) {
-		portnum = buffer[CH348_RX_PORTNUM_OFF];
+		rxb = (struct ch348_rxbuf *)buffer;
+		portnum = rxb->port;
 		if (portnum >= CH348_MAXPORT) {
 			dev_warn(&port->dev, "%s:%d invalid port %d\n",
 				 __func__, __LINE__, portnum);
 			break;
 		}
 
-		usblen = buffer[CH348_RX_LENGTH_OFF];
+		usblen = rxb->length;
 		if (usblen > 30) {
 			dev_warn(&port->dev, "%s:%d invalid length %d for port %d\n",
 				 __func__, __LINE__, usblen, portnum);
@@ -203,27 +224,26 @@ static void ch348_process_read_urb(struct urb *urb)
 		}
 
 		port = ch348->ttyport[portnum].port;
-		tty_insert_flip_string(&port->port, &buffer[CH348_RX_DATA_OFF], usblen);
+		tty_insert_flip_string(&port->port, rxb->data, usblen);
 		tty_flip_buffer_push(&port->port);
 		port->icount.rx += usblen;
-		usb_serial_debug_data(&port->dev, __func__, usblen, &buffer[CH348_RX_DATA_OFF]);
+		usb_serial_debug_data(&port->dev, __func__, usblen, rxb->data);
 	}
 }
 
 static int ch348_prepare_write_buffer(struct usb_serial_port *port, void *dest, size_t size)
 {
-	u8 *buf = dest;
+	struct ch348_txbuf *rxt = dest;
+	const size_t txhdrsize = offsetof(struct ch348_txbuf, data);
 	int count;
 
-	count = kfifo_out_locked(&port->write_fifo, buf + CH348_TX_DATA_OFF,
-				 size - CH348_TX_DATA_OFF,
-				 &port->lock);
+	count = kfifo_out_locked(&port->write_fifo, rxt->data,
+				 size - txhdrsize, &port->lock);
 
-	buf[CH348_TX_PORTNUM_OFF] = port->port_number;
-	buf[CH348_TX_LENGTH0_OFF] = count;
-	buf[CH348_TX_LENGTH1_OFF] = count >> 8;
+	rxt->port = port->port_number;
+	rxt->length = cpu_to_le16(count);
 
-	return count + CH348_TX_DATA_OFF;
+	return count + txhdrsize;
 }
 
 static int ch348_set_uartmode(struct ch348 *ch348, int portnum, u8 index, u8 mode)
@@ -247,22 +267,20 @@ static int ch348_set_uartmode(struct ch348 *ch348, int portnum, u8 index, u8 mod
 }
 
 static void ch348_set_termios(struct tty_struct *tty, struct usb_serial_port *port,
-			      const struct ktermios *termios_old)
+			      struct ktermios *termios_old)
 {
 	struct ch348 *ch348 = usb_get_serial_data(port->serial);
 	int portnum = port->port_number;
 	struct ktermios *termios = &tty->termios;
 	int ret, sent;
-	char *buffer;
 	__le32	dwDTERate;
 	u8	bCharFormat;
-	u8	bParityType;
-	u8	bDataBits;
+	struct ch348_initbuf *buffer;
 
 	if (termios_old && !tty_termios_hw_change(&tty->termios, termios_old))
 		return;
 
-	buffer = kzalloc(CH348_INIT_BUFLEN, GFP_KERNEL);
+	buffer = kzalloc(sizeof(*buffer), GFP_KERNEL);
 	if (!buffer) {
 		if (termios_old)
 			tty->termios = *termios_old;
@@ -276,43 +294,36 @@ static void ch348_set_termios(struct tty_struct *tty, struct usb_serial_port *po
 
 	bCharFormat = termios->c_cflag & CSTOPB ? 2 : 1;
 
-	bParityType = termios->c_cflag & PARENB ?
+	buffer->bParityType = termios->c_cflag & PARENB ?
 			     (termios->c_cflag & PARODD ? 1 : 2) +
 			     (termios->c_cflag & CMSPAR ? 2 : 0) : 0;
 
 	switch (termios->c_cflag & CSIZE) {
 	case CS5:
-		bDataBits = 5;
+		buffer->bDataBits = 5;
 		break;
 	case CS6:
-		bDataBits = 6;
+		buffer->bDataBits = 6;
 		break;
 	case CS7:
-		bDataBits = 7;
+		buffer->bDataBits = 7;
 		break;
 	case CS8:
 	default:
-		bDataBits = 8;
+		buffer->bDataBits = 8;
 		break;
 	}
-
-	buffer[0] = CMD_WB_E | (portnum & 0x0F);
-	buffer[1] = R_INIT;
-	buffer[2] = portnum;
-	buffer[3] = dwDTERate >> 24;
-	buffer[4] = dwDTERate >> 16;
-	buffer[5] = dwDTERate >> 8;
-	buffer[6] = dwDTERate;
+	buffer->cmd = CMD_WB_E | (portnum & 0x0F);
+	buffer->reg = R_INIT;
+	buffer->port = portnum;
+	buffer->dwDTERate = cpu_to_be32(le32_to_cpu(dwDTERate));
 	if (bCharFormat == 2)
-		buffer[7] = 0x02;
+		buffer->bCharFormat = 0x02;
 	else if (bCharFormat == 1)
-		buffer[7] = 0x00;
-	buffer[8] = bParityType;
-	buffer[9] = bDataBits;
-	buffer[10] = max_t(__le32, 5, DIV_ROUND_CLOSEST(10000 * 15, dwDTERate));
-	buffer[11] = 0;
+		buffer->bCharFormat = 0x00;
+	buffer->rate = max_t(__le32, 5, DIV_ROUND_CLOSEST(10000 * 15, dwDTERate));
 	ret = usb_bulk_msg(ch348->udev, ch348->cmdtx_endpoint, buffer,
-			   CH348_INIT_BUFLEN, &sent, DEFAULT_TIMEOUT);
+			   sizeof(*buffer), &sent, DEFAULT_TIMEOUT);
 	if (ret < 0) {
 		dev_err(&ch348->udev->dev, "%s usb_bulk_msg err=%d\n",
 			__func__, ret);
@@ -523,7 +534,7 @@ static void ch348_update_status(struct ch348 *ch348, u8 *data, unsigned int len)
 		reg = data[1];
 
 		if (reg == R_INIT) {
-			data += CH348_INIT_BUFLEN;
+			data += sizeof(struct ch348_initbuf);
 			continue;
 		}
 
@@ -592,7 +603,7 @@ static void ch348_status_read_bulk_callback(struct urb *urb)
 
 exit:
 	ret = usb_submit_urb(urb, GFP_ATOMIC);
-	if (ret && urb->status == 0) {
+	if (ret) {
 		dev_err(&ch348->udev->dev, "%s - usb_submit_urb failed: %d\n",
 			__func__, ret);
 	}
@@ -606,8 +617,10 @@ static int ch348_allocate_status_read(struct ch348 *ch348, struct usb_endpoint_d
 	if (!ch348->status_read_urb)
 		return -ENOMEM;
 	ch348->status_read_buffer = kmalloc(buffer_size, GFP_KERNEL);
-	if (!ch348->status_read_buffer)
+	if (!ch348->status_read_buffer) {
+		usb_free_urb(ch348->status_read_urb);
 		return -ENOMEM;
+	}
 
 	usb_fill_bulk_urb(ch348->status_read_urb, ch348->udev,
 			  ch348->statusrx_endpoint, ch348->status_read_buffer,
@@ -626,7 +639,7 @@ static void ch348_release(struct usb_serial *serial)
 
 static int ch348_probe(struct usb_serial *serial, const struct usb_device_id *id)
 {
-	struct usb_interface *data_interface;
+	struct usb_interface *intf;
 	struct usb_endpoint_descriptor *epcmdwrite = NULL;
 	struct usb_endpoint_descriptor *epstatusread = NULL;
 	struct usb_endpoint_descriptor *epread = NULL;
@@ -635,12 +648,25 @@ static int ch348_probe(struct usb_serial *serial, const struct usb_device_id *id
 	struct ch348 *ch348;
 	int ret;
 
-	data_interface = usb_ifnum_to_if(usb_dev, 0);
+	intf = usb_ifnum_to_if(usb_dev, 0);
 
-	epread = &data_interface->cur_altsetting->endpoint[0].desc;
-	epwrite = &data_interface->cur_altsetting->endpoint[1].desc;
-	epstatusread = &data_interface->cur_altsetting->endpoint[2].desc;
-	epcmdwrite = &data_interface->cur_altsetting->endpoint[3].desc;
+	ret = usb_find_common_endpoints(intf->cur_altsetting, &epread, &epwrite,
+					NULL, NULL);
+	if (ret) {
+		dev_err(&serial->dev->dev, "ERROR: failed to find basic endpoints ret=%d\n", ret);
+		return ret;
+	}
+	epstatusread = &intf->cur_altsetting->endpoint[2].desc;
+	epcmdwrite = &intf->cur_altsetting->endpoint[3].desc;
+
+	if (!usb_endpoint_is_bulk_in(epstatusread)) {
+		dev_err(&serial->dev->dev, "ERROR: missing second bulk in\n");
+		return -EINVAL;
+	}
+	if (!usb_endpoint_is_bulk_out(epcmdwrite)) {
+		dev_err(&serial->dev->dev, "ERROR: missing second bulk out\n");
+		return -EINVAL;
+	}
 
 	ch348 = devm_kzalloc(&serial->dev->dev, sizeof(*ch348), GFP_KERNEL);
 	if (!ch348)
