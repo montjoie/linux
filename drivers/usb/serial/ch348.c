@@ -59,20 +59,22 @@
 #define R_II_B2		0x02
 #define R_II_B3		0x00
 
+#define CH348_RX_PORT_CHUNK_LENGTH	32
+#define CH348_RX_PORT_MAX_LENGTH	30
+
 struct ch348_rxbuf {
 	u8 port;
 	u8 length;
-	u8 data[];
+	u8 data[CH348_RX_PORT_MAX_LENGTH];
 } __packed;
-
-#define CH348_RX_PORT_CHUNK_LENGTH	32
-#define CH348_RX_PORT_MAX_LENGTH	30
 
 struct ch348_txbuf {
 	u8 port;
 	__le16 length;
 	u8 data[];
 } __packed;
+
+#define CH348_TX_HDRSIZE offsetof(struct ch348_txbuf, data)
 
 struct ch348_initbuf {
 	u8 cmd;
@@ -200,7 +202,7 @@ static void ch348_process_read_urb(struct urb *urb)
 	unsigned int portnum, usblen;
 	struct ch348_rxbuf *rxb;
 
-	if (!urb->actual_length) {
+	if (urb->actual_length < 2) {
 		dev_warn(&port->dev, "%s:%d empty rx buffer\n", __func__, __LINE__);
 		return;
 	}
@@ -217,7 +219,7 @@ static void ch348_process_read_urb(struct urb *urb)
 		}
 
 		usblen = rxb->length;
-		if (usblen > 30) {
+		if (usblen > CH348_RX_PORT_MAX_LENGTH) {
 			dev_warn(&port->dev, "%s:%d invalid length %d for port %d\n",
 				 __func__, __LINE__, usblen, portnum);
 			break;
@@ -234,16 +236,15 @@ static void ch348_process_read_urb(struct urb *urb)
 static int ch348_prepare_write_buffer(struct usb_serial_port *port, void *dest, size_t size)
 {
 	struct ch348_txbuf *rxt = dest;
-	const size_t txhdrsize = offsetof(struct ch348_txbuf, data);
 	int count;
 
 	count = kfifo_out_locked(&port->write_fifo, rxt->data,
-				 size - txhdrsize, &port->lock);
+				 size - CH348_TX_HDRSIZE, &port->lock);
 
 	rxt->port = port->port_number;
 	rxt->length = cpu_to_le16(count);
 
-	return count + txhdrsize;
+	return count + CH348_TX_HDRSIZE;
 }
 
 static int ch348_set_uartmode(struct ch348 *ch348, int portnum, u8 index, u8 mode)
@@ -273,7 +274,7 @@ static void ch348_set_termios(struct tty_struct *tty, struct usb_serial_port *po
 	int portnum = port->port_number;
 	struct ktermios *termios = &tty->termios;
 	int ret, sent;
-	__le32	dwDTERate;
+	speed_t	dwDTERate;
 	u8	bCharFormat;
 	struct ch348_initbuf *buffer;
 
@@ -288,9 +289,12 @@ static void ch348_set_termios(struct tty_struct *tty, struct usb_serial_port *po
 	}
 
 	dwDTERate = tty_get_baud_rate(tty);
-	/* test show no success on low baud */
+	/* test show no success on low baud and datasheet said it is not supported */
 	if (dwDTERate < 1200)
 		dwDTERate = DEFAULT_BAUD_RATE;
+	/* datasheet said it is not supported */
+	if (dwDTERate > 6000000)
+		dwDTERate = 6000000;
 
 	bCharFormat = termios->c_cflag & CSTOPB ? 2 : 1;
 
@@ -316,12 +320,12 @@ static void ch348_set_termios(struct tty_struct *tty, struct usb_serial_port *po
 	buffer->cmd = CMD_WB_E | (portnum & 0x0F);
 	buffer->reg = R_INIT;
 	buffer->port = portnum;
-	buffer->dwDTERate = cpu_to_be32(le32_to_cpu(dwDTERate));
+	buffer->dwDTERate = cpu_to_be32(dwDTERate);
 	if (bCharFormat == 2)
 		buffer->bCharFormat = 0x02;
 	else if (bCharFormat == 1)
 		buffer->bCharFormat = 0x00;
-	buffer->rate = max_t(__le32, 5, DIV_ROUND_CLOSEST(10000 * 15, dwDTERate));
+	buffer->rate = max_t(speed_t, 5, DIV_ROUND_CLOSEST(10000 * 15, dwDTERate));
 	ret = usb_bulk_msg(ch348->udev, ch348->cmdtx_endpoint, buffer,
 			   sizeof(*buffer), &sent, DEFAULT_TIMEOUT);
 	if (ret < 0) {
