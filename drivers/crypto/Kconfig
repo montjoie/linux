@@ -705,6 +705,14 @@ config CRYPTO_DEV_ROCKCHIP_DEBUG
 	  This will create /sys/kernel/debug/rk3288_crypto/stats for displaying
 	  the number of requests per algorithm and other internal stats.
 
+config CRYPTO_DEV_ROCKCHIP_TRNG
+	bool "Support for Rockchip TRNG"
+	depends on CRYPTO_DEV_ROCKCHIP
+	select HW_RANDOM
+	help
+	  Select this option if you want to provide kernel-side support for
+	  the True Random Number Generator found in the Crypto IP.
+
 config CRYPTO_DEV_TEGRA
 	tristate "Enable Tegra Security Engine"
 	depends on TEGRA_HOST1X

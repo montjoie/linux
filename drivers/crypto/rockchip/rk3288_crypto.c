@@ -201,6 +201,8 @@ static int rk_crypto_debugfs_show(struct seq_file *seq, void *v)
 		seq_printf(seq, "%s %s requests: %lu\n",
 			   dev_driver_string(dd->dev), dev_name(dd->dev),
 			   dd->nreq);
+		seq_printf(seq, "HWRNG: %lu %lu\n",
+			   dd->hwrng_stat_req, dd->hwrng_stat_bytes);
 	}
 	spin_unlock(&rocklist.lock);
 
@@ -242,6 +244,7 @@ static void register_debugfs(struct rk_crypto_info *crypto_info)
 	dbgfs_dir = debugfs_create_dir("rk3288_crypto", NULL);
 	dbgfs_stats = debugfs_create_file("stats", 0444, dbgfs_dir, &rocklist,
 					  &rk_crypto_debugfs_fops);
+	debugfs_create_u16("sample", 0644, rocklist.dbgfs_dir, &crypto_info->rng_sample);
 
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 	rocklist.dbgfs_dir = dbgfs_dir;
@@ -395,6 +398,9 @@ static int rk_crypto_probe(struct platform_device *pdev)
 			dev_err(dev, "Fail to register crypto algorithms");
 			goto err_register_alg;
 		}
+#ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_TRNG
+		rk3288_hwrng_register(crypto_info);
+#endif
 
 		register_debugfs(crypto_info);
 	}
@@ -425,6 +431,10 @@ static void rk_crypto_remove(struct platform_device *pdev)
 #ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_DEBUG
 		debugfs_remove_recursive(rocklist.dbgfs_dir);
 #endif
+#ifdef CONFIG_CRYPTO_DEV_ROCKCHIP_TRNG
+		rk3288_hwrng_unregister(crypto_tmp);
+#endif
+
 		rk_crypto_unregister();
 	}
 	rk_crypto_pm_exit(crypto_tmp);

@@ -10,6 +10,7 @@
 #include <crypto/md5.h>
 #include <crypto/sha1.h>
 #include <crypto/sha2.h>
+#include <linux/hw_random.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/pm_runtime.h>
@@ -180,6 +181,12 @@
 #define RK_CRYPTO_HASH_DOUT_6		0x01a4
 #define RK_CRYPTO_HASH_DOUT_7		0x01a8
 
+#define RK_CRYPTO_TRNG_CTRL		0x0200
+#define RK_CRYPTO_OSC_ENABLE		BIT(16)
+#define RK_CRYPTO_TRNG_DOUT_0		0x0204
+
+#define RK_CRYPTO_MAX_TRNG_BYTE		32
+
 #define CRYPTO_READ(dev, offset)		  \
 		readl_relaxed(((dev)->reg + (offset)))
 #define CRYPTO_WRITE(dev, offset, val)	  \
@@ -219,11 +226,15 @@ struct rk_crypto_info {
 	struct reset_control		*rst;
 	void __iomem			*reg;
 	int				irq;
+	struct hwrng			hwrng;
 	const struct rk_variant *variant;
 	unsigned long nreq;
 	struct crypto_engine *engine;
 	struct completion complete;
 	int status;
+	unsigned long hwrng_stat_req;
+	unsigned long hwrng_stat_bytes;
+	short unsigned int rng_sample;
 };
 
 /* the private variable of hash */
@@ -283,3 +294,5 @@ extern struct rk_crypto_tmp rk_ahash_md5;
 
 struct rk_crypto_info *get_rk_crypto(void);
 #endif
+int rk3288_hwrng_register(struct rk_crypto_info *rk);
+void rk3288_hwrng_unregister(struct rk_crypto_info *rk);
