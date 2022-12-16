@@ -2537,6 +2537,22 @@ void i2c_register_spd(struct i2c_adapter *adap)
 	u8 common_mem_type = 0x0, mem_type;
 	u64 mem_size;
 	const char *name;
+#if IS_ENABLED(CONFIG_SPARC64)
+	struct device_node *np;
+
+	/* SPARC has no DMI, so let's scan openprom for dimm entry */
+	for_each_of_allnodes(np)
+	{
+		if (strcmp(np->name, "dimm") == 0) {
+			slot_count++;
+			dimm_count++;
+			/* FAKE */
+			common_mem_type = 0x12;
+		}
+	}
+	dev_info(&adap->dev, "%d/%d memory slots populated (from PROM)\n",
+		 dimm_count, slot_count);
+#endif
 
 	while ((handle = dmi_memdev_handle(slot_count)) != 0xffff) {
 		slot_count++;
@@ -2569,9 +2585,10 @@ void i2c_register_spd(struct i2c_adapter *adap)
 	if (!dimm_count)
 		return;
 
+#if IS_ENABLED(CONFIG_DMI)
 	dev_info(&adap->dev, "%d/%d memory slots populated (from DMI)\n",
 		 dimm_count, slot_count);
-
+#endif
 	if (slot_count > 4) {
 		dev_warn(&adap->dev,
 			 "Systems with more than 4 memory slots not supported yet, not instantiating SPD\n");
@@ -2579,6 +2596,7 @@ void i2c_register_spd(struct i2c_adapter *adap)
 	}
 
 	switch (common_mem_type) {
+	case 0x12:	/* DDR */
 	case 0x13:	/* DDR2 */
 	case 0x18:	/* DDR3 */
 	case 0x1C:	/* LPDDR2 */
