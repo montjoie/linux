@@ -1064,4 +1064,6 @@ static inline struct i2c_client *i2c_acpi_new_device(struct device *dev,
 	return i2c_acpi_new_device_by_fwnode(dev_fwnode(dev), index, info);
 }
 
+void i2c_register_spd(struct i2c_adapter *adap);
+
 #endif /* _LINUX_I2C_H */

@@ -7,7 +7,6 @@
  */
 
 #include <linux/device.h>
-#include <linux/dmi.h>
 #include <linux/i2c.h>
 #include <linux/i2c-smbus.h>
 #include <linux/interrupt.h>
@@ -303,107 +302,6 @@ void i2c_free_slave_host_notify_device(struct i2c_client *client)
 	i2c_unregister_device(client);
 }
 EXPORT_SYMBOL_GPL(i2c_free_slave_host_notify_device);
-#endif
-
-/*
- * SPD is not part of SMBus but we include it here for convenience as the
- * target systems are the same.
- * Restrictions to automatic SPD instantiation:
- *  - Only works if all filled slots have the same memory type
- *  - Only works for DDR2, DDR3 and DDR4 for now
- *  - Only works on systems with 1 to 4 memory slots
- */
-#if IS_ENABLED(CONFIG_DMI)
-void i2c_register_spd(struct i2c_adapter *adap)
-{
-	int n, slot_count = 0, dimm_count = 0;
-	u16 handle;
-	u8 common_mem_type = 0x0, mem_type;
-	u64 mem_size;
-	const char *name;
-
-	while ((handle = dmi_memdev_handle(slot_count)) != 0xffff) {
-		slot_count++;
-
-		/* Skip empty slots */
-		mem_size = dmi_memdev_size(handle);
-		if (!mem_size)
-			continue;
-
-		/* Skip undefined memory type */
-		mem_type = dmi_memdev_type(handle);
-		if (mem_type <= 0x02)		/* Invalid, Other, Unknown */
-			continue;
-
-		if (!common_mem_type) {
-			/* First filled slot */
-			common_mem_type = mem_type;
-		} else {
-			/* Check that all filled slots have the same type */
-			if (mem_type != common_mem_type) {
-				dev_warn(&adap->dev,
-					 "Different memory types mixed, not instantiating SPD\n");
-				return;
-			}
-		}
-		dimm_count++;
-	}
-
-	/* No useful DMI data, bail out */
-	if (!dimm_count)
-		return;
-
-	dev_info(&adap->dev, "%d/%d memory slots populated (from DMI)\n",
-		 dimm_count, slot_count);
-
-	if (slot_count > 4) {
-		dev_warn(&adap->dev,
-			 "Systems with more than 4 memory slots not supported yet, not instantiating SPD\n");
-		return;
-	}
-
-	switch (common_mem_type) {
-	case 0x13:	/* DDR2 */
-	case 0x18:	/* DDR3 */
-	case 0x1C:	/* LPDDR2 */
-	case 0x1D:	/* LPDDR3 */
-		name = "spd";
-		break;
-	case 0x1A:	/* DDR4 */
-	case 0x1E:	/* LPDDR4 */
-		name = "ee1004";
-		break;
-	default:
-		dev_info(&adap->dev,
-			 "Memory type 0x%02x not supported yet, not instantiating SPD\n",
-			 common_mem_type);
-		return;
-	}
-
-	/*
-	 * We don't know in which slots the memory modules are. We could
-	 * try to guess from the slot names, but that would be rather complex
-	 * and unreliable, so better probe all possible addresses until we
-	 * have found all memory modules.
-	 */
-	for (n = 0; n < slot_count && dimm_count; n++) {
-		struct i2c_board_info info;
-		unsigned short addr_list[2];
-
-		memset(&info, 0, sizeof(struct i2c_board_info));
-		strscpy(info.type, name, I2C_NAME_SIZE);
-		addr_list[0] = 0x50 + n;
-		addr_list[1] = I2C_CLIENT_END;
-
-		if (!IS_ERR(i2c_new_scanned_device(adap, &info, addr_list, NULL))) {
-			dev_info(&adap->dev,
-				 "Successfully instantiated SPD at 0x%hx\n",
-				 addr_list[0]);
-			dimm_count--;
-		}
-	}
-}
-EXPORT_SYMBOL_GPL(i2c_register_spd);
 #endif
 
 MODULE_AUTHOR("Jean Delvare <jdelvare@suse.de>");
