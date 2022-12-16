@@ -1297,7 +1297,6 @@ static void i801_probe_optional_slaves(struct i801_priv *priv)
 #if IS_ENABLED(CONFIG_I2C_MUX_GPIO)
 	if (!priv->mux_drvdata)
 #endif
-		i2c_register_spd(&priv->adapter);
 }
 #else
 static void __init input_apanel_init(void) {}
