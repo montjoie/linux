@@ -271,7 +271,7 @@ static int ch348_set_uartmode(struct ch348 *ch348, int portnum, u8 index, u8 mod
 }
 
 static void ch348_set_termios(struct tty_struct *tty, struct usb_serial_port *port,
-			      struct ktermios *termios_old)
+			      const struct ktermios *termios_old)
 {
 	struct ch348 *ch348 = usb_get_serial_data(port->serial);
 	int portnum = port->port_number;
